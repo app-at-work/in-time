@@ -1043,6 +1043,7 @@ header .sb-st ~ .actions{margin-left:10px}
         <button class="btn icon" id="bLimpaF" title="Limpar filtros" onclick="limparFiltros()" hidden><i data-lucide="filter-x"></i></button>
         <span class="fres" id="fRes"></span>
       </div>
+      <div class="mchips" id="pStat"><button data-ps="all" class="on">Todas</button><button data-ps="ni">Não iniciadas</button><button data-ps="ex">Em execução</button><button data-ps="fi">Finalizadas</button></div>
       <div class="seg" id="segView" hidden>
         <button class="active" data-v="lotes"><i data-lucide="layers"></i>Sequências</button>
       </div>
@@ -1142,7 +1143,7 @@ let dados = [], LOTES = [];
 let view = 'lotes', sortK = null, sortAsc = true; var dayW = 28;
 let pend = null;
 const gCol = new Set();
-const F = { q:'', av:false, sem:new Set(), tag:new Set(), seq:new Set() };
+const F = { q:'', av:false, sem:new Set(), tag:new Set(), seq:new Set(), ps:'all' };
 const MS = { sem:{label:'Semana',icon:'calendar-days'}, tag:{label:'TAG',icon:'tag'}, seq:{label:'Sequência',icon:'layers'} };
 
 /* ================= UTIL ================= */
@@ -1558,7 +1559,7 @@ function atualizarBadge(){
 function limparFiltros(){ F.q = ''; F.av = false; Object.keys(MS).forEach(k => F[k].clear()); atualizarBadge(); render(); }
 function lotesFiltrados(){
   const q = norm(F.q);
-  return LOTES.filter(l => lotePassa(l, null))
+  return LOTES.filter(l => lotePassa(l, null)).filter(l => F.ps==='all' || (psDe(l.id)?.st||'ni')===F.ps)
     .map(l => ({...l, itens: l.itens.filter(r =>
       (!q || norm(`${r.TAG} ${l.id} ${r.Ordem} ${r.Atividade}`).includes(q)) && (!F.av || r._avisos.length || l.avisos.length))}))
     .filter(l => l.itens.length);
@@ -2601,12 +2602,24 @@ function relTempo(iso){
 }
 function infDados(){
   const hoje = infSemana();
-  const L = LOTES.filter(l => l.sem.label === hoje.label);
+  const semIni = +new Date(hoje.seg);
+  const semFim = +new Date(hoje.dom) + 864e5 - 1;
   const mapX = l => {
     const a = ALOC[l.id], o = a ? OFI.find(x => x.id === a.of) : null, ps = psDe(l.id);
-    return { l, o, loc:o ? a.loc : '', mina:o ? o.mina : '', p:progresso(l), st:ps ? ps.st : 'ni', ps };
+    const iniReal = ps?.ini ? +new Date(ps.ini) : null;
+    const fimReal = ps?.fim ? +new Date(ps.fim) : null;
+    const planejada = l.sem.label === hoje.label;
+    const iniciouNaSemana = iniReal != null && iniReal >= semIni && iniReal <= semFim;
+    const finalizouNaSemana = fimReal != null && fimReal >= semIni && fimReal <= semFim;
+    const executouNaSemana = iniReal != null && iniReal <= semFim && (fimReal == null || fimReal >= semIni);
+    return { l, o, loc:o ? a.loc : '', mina:o ? o.mina : '', p:progresso(l), st:ps ? ps.st : 'ni', ps,
+      planejada, iniciouNaSemana, finalizouNaSemana, executouNaSemana };
   };
-  const X = L.map(mapX);
+  // Panorama operacional: inclui o planejamento da semana e toda programação
+  // que iniciou, permaneceu em execução ou foi finalizada no período selecionado.
+  const XALL = LOTES.map(mapX);
+  const X = XALL.filter(x => x.planejada || x.iniciouNaSemana || x.finalizouNaSemana || x.executouNaSemana);
+  const L = X.map(x => x.l);
   const dProx = new Date(hoje.seg); dProx.setDate(dProx.getDate() + 7);
   const prox = semanaDe(dProx);
   const XN = LOTES.filter(l => l.sem.label === prox.label).map(mapX);
@@ -2622,7 +2635,9 @@ function infDados(){
     ini:X.filter(x => x.st !== 'ni'), and:X.filter(x => x.st === 'ex'), fin:X.filter(x => x.st === 'fi'), nini:X.filter(x => x.st === 'ni'),
     par:X.filter(x => x.p.par > 0), can:X.filter(x => x.p.can > 0),
     p80:X.filter(x => x.st === 'ex' && x.p.pct >= 80).sort((a,b) => b.p.pct - a.p.pct),
-    fin6:X.filter(x => x.st === 'fi' && x.ps.fim && new Date(x.ps.fim) >= seis).sort((a,b) => new Date(b.ps.fim) - new Date(a.ps.fim))
+    // Plantão global: usa o momento real da finalização, independentemente da semana original.
+    fin6:XALL.filter(x => x.st === 'fi' && x.ps?.fim && +new Date(x.ps.fim) >= seis)
+      .sort((a,b) => +new Date(b.ps.fim) - +new Date(a.ps.fim))
   };
   MINAS.forEach(m => G['mina:'+m] = X.filter(x => x.mina === m));
   G.cor = X.filter(x => x.l.cor);
@@ -2746,12 +2761,14 @@ function renderInf(){
   const nTags = D.tags.size;
 
   /* manchete */
+  const nHerdadas = D.X.filter(x => !x.planejada && (x.iniciouNaSemana || x.executouNaSemana || x.finalizouNaSemana)).length;
   const manchete = `${pl(n,'programação movimenta','programações movimentam')} ${minasC.length ? pl(minasC.length,'mina','minas') : 'a manutenção'} ${periodo}`;
   const E = D.est;
   const lead = `Ao todo são ${lk('equip', pl(nTags,'equipamento programado','equipamentos programados'))}, somando <b>${pl(E.ativ,'atividade','atividades')}</b> distribuídas em <b>${pl(E.ord,'ordem','ordens')}</b> e cerca de <b>${E.horas} horas</b> de manutenção planejada.
     ${G.and.length ? `Neste momento, ${lk('and', pl(G.and.length,'programação está em andamento','programações estão em andamento'))}` : 'Nenhuma programação está em andamento agora'}${G.fin6.length ? ` e ${lk('fin6', pl(G.fin6.length,'foi finalizada','foram finalizadas'))} nas últimas 6 horas` : ''}.
     ${G.nini.length ? `Outras ${lk('nini', pl(G.nini.length,'aguarda início','aguardam início'))}.` : 'Todas as programações já foram iniciadas.'}
-    ${G.par.length ? ` Atenção para ${lk('par', pl(G.par.length,'programação com paralisação','programações com paralisação'))}.` : ''}`;
+    ${G.par.length ? ` Atenção para ${lk('par', pl(G.par.length,'programação com paralisação','programações com paralisação'))}.` : ''}
+    ${nHerdadas ? ` O panorama inclui <b>${pl(nHerdadas,'programação de outra semana','programações de outras semanas')}</b> que iniciou, permaneceu em execução ou foi finalizada no período selecionado.` : ''}`;
 
   /* artigo: minas */
   const maxM = Math.max(1, ...MINAS.map(m => G['mina:'+m].length), G.semAloc.length);
@@ -2835,7 +2852,7 @@ function renderInf(){
     : `Nenhuma atividade marcada como OMVE foi encontrada ${periodo}.`;
   /* plantão */
   const plantao = G.fin6.length ? G.fin6.slice(0, 6).map(x => `<button class="pt" data-sq="${esc(x.l.id)}"><span class="pt-d">${ic('flag','sm')}</span>
-      <span><small>${relTempo(x.ps.fim)}</small><b>${esc(x.l.tag)} finalizada${x.o ? ` no ${esc(x.loc)} · ${esc(x.o.nome)}` : ''}</b><small>${x.p.pct}% executado${x.p.nex ? ` · ${x.p.nex} não executada(s)` : ''}</small></span></button>`).join('')
+      <span><small>Finalizada no sistema ${relTempo(x.ps.fim)} · ${fmtDH(new Date(x.ps.fim))}</small><b>${esc(x.l.tag)} finalizada${x.o ? ` no ${esc(x.loc)} · ${esc(x.o.nome)}` : ''}</b><small>Programação da semana ${esc(x.l.sem.label)} · ${x.p.pct}% executado${x.p.nex ? ` · ${x.p.nex} não executada(s)` : ''}</small></span></button>`).join('')
     : `<div class="pt-v">${ic('coffee','sm')}Nenhuma programação finalizada nas últimas 6 horas.</div>`;
 
   const num = (k, i, v, t, c='') => `<button class="nn ${c}" data-k="${k}"><span class="ni">${ic(i)}</span><span><b>${v}</b><small>${t}</small></span></button>`;
@@ -2875,7 +2892,7 @@ function renderInf(){
           ${num('boxlivre','warehouse',D.boxLivres,'locais livres','gr')}
           ${num('prox','calendar-arrow-up',D.XN.length,'próxima semana','bl')}
         </div></div>` },
-    { art:false, html:`<div class="side-c"><h4>${ic('radio','sm')}Plantão · últimas 6 horas</h4><div class="pts">${plantao}</div></div>` }
+    { art:false, html:`<div class="side-c"><h4>${ic('radio','sm')}Plantão · últimas 6 horas (todas as semanas)</h4><div class="pts">${plantao}</div></div>` }
   ];
   if(infPagSem !== s.label){ infPag = 0; infPagSem = s.label; }
   infPaginar(el, top, hero, blocos);
@@ -3341,6 +3358,7 @@ document.querySelectorAll('.tbl-of thead th[data-ok]').forEach(th => th.onclick 
   const k = th.dataset.ok; if(ofSort === k) ofAsc = !ofAsc; else { ofSort = k; ofAsc = true; } renderOfi();
 });
 $('oQ').oninput = renderOfi;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-ps]'); if(!b) return; F.ps=b.dataset.ps; document.querySelectorAll('#pStat [data-ps]').forEach(x=>x.classList.toggle('on',x===b)); render();});
 $('iQ').oninput = renderInTime;
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && !pend) fecharModal(); });
 
