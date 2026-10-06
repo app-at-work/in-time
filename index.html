@@ -982,10 +982,26 @@ header .sb-st ~ .actions{margin-left:10px}
 .tl .bx:has(.omve-b){border-color:#f0a0a7;background:#fff7f8}
 .art.safety::before{background:#b91c1c!important}.kick.sf{color:#b91c1c}
 .tl-l.safety li::before{background:#b91c1c}.omve-l{display:flex;align-items:center;gap:6px}.omve-l svg{color:#b91c1c}
-.s-h .omve-b{margin-left:auto}.s-h .omve-b + .st{margin-left:0}
+.mdl-l{display:flex;flex-direction:column;gap:10px}
+.mdl{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid var(--border);background:#fbfdfd;border-radius:14px;padding:12px 14px;transition:.15s}
+.mdl:hover{border-color:var(--pri)}
+.mdl.on{border-color:var(--pri);background:var(--pri-soft);box-shadow:0 0 0 3px var(--pri-ring)}
+.mdl-i{width:42px;height:42px;border-radius:12px;background:var(--pri-soft2);color:var(--pri);display:grid;place-items:center;flex-shrink:0}
+.mdl.on .mdl-i{background:var(--pri);color:#fff}
+.mdl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.mdl-t b{font-size:14px}.mdl-t small{color:var(--muted);font-size:12px}
+.mdl-c{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.mdl-c i{font-style:normal;font-size:11px;font-weight:600;background:#fff;border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--pri-dark);font-family:ui-monospace,Consolas,monospace}
+.mdl svg.ok{color:var(--pri)}
+.nw-main.tp .art.canc::before{background:#9aa9a8}
+.kick.cn{color:#56706e}
+.tl-l.cn li::before{background:#9aa9a8}
+.tl-l.cn .lk2:hover{background:#eef2f2}
+.cn-m{display:block;font-size:12px;color:#56706e;font-style:italic;margin-top:1px}
+.hbtn .spin{animation:spin 1s linear infinite}
 </style>
 </head>
-<body>
+<body class="locked">
 
 <aside class="side" id="side">
   <div class="sb-top">
@@ -995,6 +1011,7 @@ header .sb-st ~ .actions{margin-left:10px}
   <nav class="sb-nav" id="sbNav"></nav>
   <div class="sb-ft">
     <button class="sb-it pin" id="sbPin" title="Fixar menu aberto"><span class="ib"><i data-lucide="pin"></i><span class="sg">FIX</span></span><span class="lb"><b>Fixar menu</b><small>Manter expandido</small></span></button>
+    <button class="sb-it" id="sbUser" hidden onclick="authSair()" title="Sair"><span class="ib"><span class="av-i"></span></span><span class="lb"><b></b><small></small></span></button>
     <button class="sb-it" onclick="abrirAjuda()" title="Ajuda"><span class="ib"><i data-lucide="circle-help"></i><span class="sg">AJD</span></span><span class="lb"><b>Ajuda</b><small>Como usar</small></span></button>
   </div>
 </aside>
@@ -1008,13 +1025,16 @@ header .sb-st ~ .actions{margin-left:10px}
   <div class="sb-st load" id="sbSt"></div>
   <div class="actions" id="hActProg">
     <button class="hbtn solid" onclick="baixarModelo()"><i data-lucide="file-down"></i>Modelo<span class="lbl-long">&nbsp;Excel</span></button>
-    <button class="hbtn" onclick="document.getElementById('file').click()"><i data-lucide="upload"></i>Importar</button>
+    <button class="hbtn" onclick="escolherModelo()"><i data-lucide="upload"></i>Importar</button>
   </div>
   <div class="actions" id="hActOfi" hidden>
     <button class="hbtn solid" onclick="formOficina()"><i data-lucide="plus"></i>Nova oficina</button>
   </div>
   <div class="actions" id="hActInt" hidden></div>
-  <div class="actions" id="hActInf" hidden></div>
+  <div class="actions" id="hActInf" hidden><button class="hbtn" id="bInfHtml" onclick="exportarInfHtml()" title="Baixar o informativo em HTML (somente leitura, com os dados deste momento)"><i data-lucide="file-code-2"></i>Exportar HTML</button></div>
+  <div class="actions" id="hActCfg" hidden></div>
+  <div class="actions" id="hActMin" hidden></div>
+  <div class="actions" id="hActAcs" hidden></div>
 </header>
 
 <main>
@@ -1023,11 +1043,11 @@ header .sb-st ~ .actions{margin-left:10px}
   <section class="scr" id="scrInf" hidden><div class="news" id="news"></div></section>
 
   <section class="scr" id="scrProg">
-    <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.xls,.csv" hidden>
     <div class="drop" id="drop">
       <div class="dic"><i data-lucide="file-spreadsheet"></i></div>
       <div><b>Arraste o arquivo Excel aqui</b> ou clique para selecionar</div>
-      <p id="dropTxt">Aceita .xlsx, .xls e .csv. Use o botão <b>Modelo</b> para baixar a planilha padrão.</p>
+      <p id="dropTxt">Aceita .xlsx, .xlsm, .xls e .csv · <b>Modelo padrão</b> ou <b>Programação Semanal (IW49N)</b>. Use o botão <b>Modelo</b> para baixar a planilha padrão.</p>
     </div>
     <div class="kpis" id="kpis" hidden>
       <div class="kpi"><div class="ki"><i data-lucide="list-checks"></i></div><div><span>Atividades</span><strong id="kTot">0</strong></div></div>
@@ -1094,6 +1114,10 @@ header .sb-st ~ .actions{margin-left:10px}
   </section>
 
   <!-- ================= OFICINAS (controle de cadastros) ================= -->
+  <!-- ================= CONFIGURAÇÕES ================= -->
+  <section class="scr" id="scrCfg" hidden><div id="cfgBody" class="scr"></div></section>
+  <section class="scr" id="scrMin" hidden><div id="minBody" class="scr"></div></section>
+  <section class="scr" id="scrAcs" hidden><div id="acsBody" class="scr"></div></section>
   <section class="scr" id="scrOfi" hidden>
     <div class="kpis" id="oKpis"></div>
     <div class="toolbar">
@@ -1128,6 +1152,142 @@ header .sb-st ~ .actions{margin-left:10px}
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<!-- ================= LOGIN / CADASTRO ================= -->
+<style>
+body.locked .app,body.locked .side,body.locked .sb-bg{visibility:hidden}
+.auth{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background:radial-gradient(circle at 20% 15%,rgba(255,255,255,.12),transparent 45%),linear-gradient(135deg,var(--pri) 0%,#00504d 100%)}
+.auth-c{width:100%;max-width:420px;background:#fff;border-radius:20px;box-shadow:var(--sh-lg);padding:28px 26px;display:flex;flex-direction:column;gap:18px;animation:up .25s;margin:auto}
+.auth-h{display:flex;align-items:center;gap:12px}
+.auth-h .logo{width:48px;height:48px;border-radius:13px;background:#fff;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.1);padding:5px;display:grid;place-items:center;flex-shrink:0}
+.auth-h .logo img{width:100%;height:100%;object-fit:contain}
+.auth-h b{display:block;font-size:18px;color:var(--pri-dark)}
+.auth-h small{color:var(--muted);font-size:12.5px}
+.auth .seg{width:100%}.auth .seg button{flex:1;justify-content:center;padding:9px 12px}
+.auth-f{display:flex;flex-direction:column;gap:14px}
+.auth-l{display:flex;flex-direction:column;gap:6px}
+.auth-l .fl{display:inline-flex;align-items:baseline;gap:2px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+.auth-l .fl em{color:var(--err);font-style:normal}
+.auth .input{flex:none}
+.auth .input input{padding-right:42px}
+.auth .input.inv input{border-color:var(--err);box-shadow:0 0 0 3px rgba(220,53,69,.15)}
+.auth-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:none;background:transparent;border-radius:8px;color:var(--muted);display:grid;place-items:center}
+.auth-eye:hover{background:var(--pri-soft);color:var(--pri-dark)}
+.auth-eye svg.lucide{position:static!important;transform:none!important}
+.auth-cnt{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.auth-cnt.ok{color:var(--ok)}
+.auth-msg{font-size:12.5px;border-radius:10px;display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.auth-msg:empty{display:none}
+.auth-msg.er{background:var(--err-soft);color:var(--err);border:1px solid #f5c2c7;padding:9px 12px}
+.auth-msg.ok{background:#e7f6ec;color:#11703a;border:1px solid #bfe5cb;padding:9px 12px}
+.auth-go{width:100%;justify-content:center;padding:12px;font-size:14px}
+.auth-go .spin{animation:spin 1s linear infinite}
+.auth-alt{text-align:center;font-size:13px;color:var(--muted)}
+.av-i{width:32px;height:32px;border-radius:50%;background:#fff;color:var(--pri-dark);font-size:12px;font-weight:800;display:grid;place-items:center;letter-spacing:.3px}
+#sbUser.active .av-i{background:var(--pri);color:#fff}
+#sbUser .lb small{max-width:160px;overflow:hidden;text-overflow:ellipsis}
+</style>
+<div class="auth" id="auth" hidden></div>
+<script>
+const authNome = u => (u?.user_metadata?.nome || (u?.email || '').split('@')[0] || 'Usuário');
+function authErr(e){
+  const m = String(e?.message || e || '');
+  if(/invalid login/i.test(m)) return 'E-mail ou senha incorretos.';
+  if(/not confirmed/i.test(m)) return 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
+  if(/already (been )?registered/i.test(m)) return 'Este e-mail já está cadastrado. Faça login.';
+  if(/password should|at least/i.test(m)) return 'A senha deve ter no mínimo 8 caracteres.';
+  if(/rate limit|too many/i.test(m)) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if(/fetch|network/i.test(m)) return 'Sem conexão com o servidor. Verifique a internet.';
+  return m || 'Não foi possível concluir. Tente novamente.';
+}
+function authUser(u){
+  const el = $('sbUser'); if(!el || !u) return;
+  const n = authNome(u);
+  el.querySelector('.av-i').textContent = n.split(/\s+/).filter(Boolean).slice(0,2).map(x => x[0].toUpperCase()).join('') || '?';
+  el.querySelector('.lb b').textContent = n;
+  el.querySelector('.lb small').textContent = u.email || '';
+  el.title = `${n} · Sair`; el.hidden = false;
+}
+function authSair(){
+  abrirModal('Sair', 'log-out', `<p>Deseja sair da sua conta?</p>`,
+    `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn red" id="bSair">${ic('log-out')}Sair</button>`);
+  $('bSair').onclick = async () => { try{ await sb.auth.signOut(); }catch(e){} location.reload(); };
+}
+function authOffline(){
+  const box = $('auth'); box.hidden = false;
+  box.innerHTML = `<div class="auth-c"><div class="auth-h"><div class="logo">${ic('cloud-off')}</div><div><b>Sem conexão</b><small>Não foi possível carregar o serviço de login</small></div></div>
+    <div class="auth-msg er">${ic('circle-alert','sm')}<span>Verifique a internet ou o bloqueio de rede e tente novamente.</span></div>
+    <button class="btn solid auth-go" onclick="location.reload()">${ic('refresh-cw')}Tentar novamente</button></div>`;
+  icons();
+}
+function authGate(){
+  return new Promise(resolve => {
+    const box = $('auth'); box.hidden = false;
+    let modo = 'in'; const mem = { nome:'', email:'' };
+    const logo = document.querySelector('.sb-top .logo img')?.src || '';
+    const fld = (id, lb, i, t, ph, ac, pw) => `<label class="auth-l"><span class="fl">${lb}<em>*</em></span>
+      <div class="input">${ic(i)}<input id="au_${id}" type="${t}" placeholder="${ph}" autocomplete="${ac}" value="${esc(mem[id] || '')}">
+      ${pw ? `<button type="button" class="auth-eye" data-eye="au_${id}" title="Mostrar senha">${ic('eye','sm')}</button>` : ''}</div></label>`;
+    const msg = (t, tp='er') => { const m = $('authMsg'); m.className = 'auth-msg ' + tp; m.innerHTML = t ? `${ic(tp === 'er' ? 'circle-alert' : 'mail-check','sm')}<span>${esc(t)}</span>` : ''; };
+    const fim = s => { box.hidden = true; box.innerHTML = ''; resolve(s); };
+    const draw = () => {
+      const up = modo === 'up';
+      box.innerHTML = `<div class="auth-c">
+        <div class="auth-h"><div class="logo">${logo ? `<img src="${logo}" alt="Logo">` : ic('calendar-range')}</div>
+          <div><b>IN TIME</b><small>${up ? 'Crie sua conta para acessar' : 'Entre para acessar o aplicativo'}</small></div></div>
+        <div class="seg"><button type="button" data-m="in" class="${up ? '' : 'active'}">${ic('log-in','sm')}Entrar</button><button type="button" data-m="up" class="${up ? 'active' : ''}">${ic('user-plus','sm')}Cadastrar</button></div>
+        <form class="auth-f" id="authF" novalidate>
+          ${up ? fld('nome','Nome','user','text','Seu nome completo','name') : ''}
+          ${fld('email','E-mail','mail','email','nome@empresa.com','email')}
+          ${fld('senha','Senha','lock','password', up ? 'Mínimo de 8 caracteres' : 'Sua senha', up ? 'new-password' : 'current-password', true)}
+          ${up ? `<span class="auth-cnt" id="authCnt">${ic('info','sm')}0/8 caracteres</span>` : ''}
+          <div class="auth-msg" id="authMsg"></div>
+          <button type="submit" class="btn solid auth-go" id="authGo">${ic(up ? 'user-plus' : 'log-in')}${up ? 'Criar conta' : 'Entrar'}</button>
+        </form>
+        <div class="auth-alt">${up ? 'Já tem conta? <button type="button" class="lk" data-m="in">Entrar</button>' : 'Não tem conta? <button type="button" class="lk" data-m="up">Cadastre-se</button>'}</div>
+      </div>`;
+      box.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { if(b.dataset.m !== modo){ modo = b.dataset.m; draw(); } });
+      box.querySelectorAll('[data-eye]').forEach(b => b.onclick = () => {
+        const i = $(b.dataset.eye), ver = i.type === 'password';
+        i.type = ver ? 'text' : 'password'; b.innerHTML = ic(ver ? 'eye-off' : 'eye','sm'); b.title = ver ? 'Ocultar senha' : 'Mostrar senha';
+      });
+      box.querySelectorAll('input').forEach(i => i.oninput = () => {
+        i.closest('.input').classList.remove('inv');
+        if(i.id === 'au_nome') mem.nome = i.value; if(i.id === 'au_email') mem.email = i.value;
+        if(i.id === 'au_senha' && $('authCnt')){ const n = i.value.length, c = $('authCnt');
+          c.className = 'auth-cnt' + (n >= 8 ? ' ok' : ''); c.innerHTML = `${ic(n >= 8 ? 'circle-check' : 'info','sm')}${n}/8 caracteres`; }
+      });
+      $('authF').onsubmit = async e => {
+        e.preventDefault();
+        const nome = $('au_nome')?.value.trim() || '', email = $('au_email').value.trim().toLowerCase(), senha = $('au_senha').value;
+        const bad = (id, t) => { $(id).closest('.input').classList.add('inv'); $(id).focus(); msg(t); };
+        if(up && nome.length < 3) return bad('au_nome', 'Informe seu nome.');
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('au_email', 'Informe um e-mail válido.');
+        if(!senha) return bad('au_senha', 'Informe a senha.');
+        if(up && senha.length < 8) return bad('au_senha', 'A senha deve ter no mínimo 8 caracteres.');
+        msg('');
+        const btn = $('authGo'), orig = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = `${ic('loader-circle','spin')}Aguarde…`;
+        try{
+          if(!up){
+            const { data, error } = await sb.auth.signInWithPassword({ email, password:senha });
+            if(error) throw error; return fim(data.session);
+          }
+          const { data, error } = await sb.auth.signUp({ email, password:senha, options:{ data:{ nome } } });
+          if(error) throw error;
+          if(data.session) return fim(data.session);
+          if(data.user && Array.isArray(data.user.identities) && !data.user.identities.length){ msg('Este e-mail já está cadastrado. Faça login.'); return; }
+          modo = 'in'; mem.email = email; draw();
+          msg(`Cadastro realizado! Enviamos um link de confirmação para ${email}. Confirme e depois entre com sua senha.`, 'ok');
+        }catch(err){ msg(authErr(err)); }
+        finally{ if(btn.isConnected){ btn.disabled = false; btn.innerHTML = orig; } }
+      };
+      icons();
+      setTimeout(() => { const f = box.querySelector('input:not([value]), input[value=""]') || $('au_email'); f && f.focus(); }, 30);
+    };
+    draw();
+  });
+}
+</script>
 <script>
 /* ================= CONFIG ================= */
 const COLS = ['TAG','Ordem','Atividade','Inicio','Fim'];
@@ -1264,32 +1424,73 @@ async function baixarModelo(){
 }
 
 /* ================= IMPORTAÇÃO ================= */
+/* ---------- modelos de importação ---------- */
+const MODELOS = {
+  padrao:{ nome:'Modelo padrão', desc:'Planilha baixada no botão Modelo (aba Modelo)', icon:'file-spreadsheet', aba:'Modelo', tabela:'',
+    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['Atividade'], OMVE:['OMVE'], Inicio:['Inicio','Início'], Fim:['Fim'] } },
+  iw49n:{ nome:'Programação Semanal (IW49N)', desc:'Aba Programação_Semanal · tabela Base_IW49N', icon:'table-2', aba:'Programação_Semanal', tabela:'Base_IW49N',
+    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['TxtDesc.Oper.','TxtDesc. Oper.','TxtDesc Oper'], OMVE:['OMVE'],
+          Inicio:['Inicio Programação','Início Programação'], Fim:['Término Programação','Termino Programação'] } }
+};
+let modeloImp = localStorage.getItem('modelo_import') || 'padrao', modeloEsc = null;
+const normH = s => norm(s).replace(/\s+/g,' ');
+function escolherModelo(){
+  abrirModal('Importar programação', 'upload', `
+    <p style="margin-bottom:12px">Selecione o modelo da planilha que será importada:</p>
+    <div class="mdl-l">${Object.entries(MODELOS).map(([k,M]) => `<button type="button" class="mdl ${k===modeloImp?'on':''}" data-md="${k}">
+      <span class="mdl-i">${ic(M.icon)}</span><span class="mdl-t"><b>${M.nome}</b><small>${M.desc}</small>
+      <span class="mdl-c">${COLS.concat('OMVE').map(c => `<i title="${c}">${esc(M.map[c][0])}</i>`).join('')}</span></span>${k===modeloImp ? ic('circle-check','sm ok') : ic('circle','sm')}</button>`).join('')}</div>`,
+    `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn solid" id="mdlGo">${ic('folder-open')}Selecionar arquivo</button>`);
+  let sel = modeloImp;
+  $('mBody').querySelectorAll('[data-md]').forEach(b => b.onclick = () => { sel = b.dataset.md;
+    $('mBody').querySelectorAll('[data-md]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.lastElementChild.outerHTML = ic(on ? 'circle-check' : 'circle', on ? 'sm ok' : 'sm'); }); });
+  $('mBody').querySelectorAll('[data-md]').forEach(b => b.ondblclick = () => $('mdlGo').click());
+  $('mdlGo').onclick = () => { modeloImp = sel; modeloEsc = sel; try{ localStorage.setItem('modelo_import', sel); }catch(e){} fecharModal(); $('file').click(); };
+}
 function lerArquivo(file){
   if(!file) return;
-  if(!/\.(xlsx|xls|csv)$/i.test(file.name)){ toast('Formato inválido. Use .xlsx, .xls ou .csv','er'); return; }
+  const escolhido = modeloEsc; modeloEsc = null;
+  if(!/\.(xlsx|xlsm|xls|csv)$/i.test(file.name)){ toast('Formato inválido. Use .xlsx, .xlsm, .xls ou .csv','er'); return; }
   const rd = new FileReader();
   rd.onload = e => {
     try{
       const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
-      const nome = wb.SheetNames.find(n => norm(n) === 'modelo') || wb.SheetNames[0];
-      processar(XLSX.utils.sheet_to_json(wb.Sheets[nome], {header:1, raw:true, defval:''}), file.name);
+      const abaDe = k => wb.SheetNames.find(n => normH(n) === normH(MODELOS[k].aba));
+      const k = escolhido || (abaDe('iw49n') ? 'iw49n' : 'padrao'), M = MODELOS[k];
+      let aba = abaDe(k);
+      if(!aba){
+        if(k === 'iw49n'){
+          abrirModal('Aba não encontrada', 'file-warning', `<p>O arquivo <b>${esc(file.name)}</b> não possui a aba <b>${esc(M.aba)}</b>, exigida pelo modelo <b>${esc(M.nome)}</b>.</p>
+            <p style="margin-top:8px;color:var(--muted)">Abas encontradas: ${wb.SheetNames.map(esc).join(', ')}</p>`,
+            `<button class="btn" onclick="escolherModelo()">${ic('repeat')}Trocar modelo</button><button class="btn solid" onclick="fecharModal()">Fechar</button>`);
+          return;
+        }
+        aba = wb.SheetNames[0];
+      }
+      processar(XLSX.utils.sheet_to_json(wb.Sheets[aba], {header:1, raw:true, defval:''}), file.name, k);
     }catch(err){ console.error(err); toast('Erro ao ler o arquivo: '+err.message,'er'); }
   };
   rd.readAsArrayBuffer(file);
 }
-function processar(linhas, nomeArq){
-  let hIdx = -1, mapa = {};
-  for(let i=0; i<Math.min(10, linhas.length); i++){
+function processar(linhas, nomeArq, mk='padrao'){
+  const M = MODELOS[mk] || MODELOS.padrao;
+  const alvo = Object.fromEntries(Object.entries(M.map).map(([c, ns]) => [c, ns.map(normH)]));
+  let hIdx = -1, mapa = {}, melhor = {};
+  for(let i = 0; i < Math.min(80, linhas.length); i++){
     const m = {};
-    linhas[i].forEach((c,j) => { const col = [...COLS,...COLS_OPC].find(k => norm(k) === norm(c)); if(col && m[col] === undefined) m[col] = j; });
-    if(Object.keys(m).length >= 3){ hIdx = i; mapa = m; break; }
+    (linhas[i] || []).forEach((c,j) => { const h = normH(c); if(!h) return;
+      const col = Object.keys(alvo).find(k => alvo[k].includes(h)); if(col && m[col] === undefined) m[col] = j; });
+    const n = COLS.filter(c => m[c] !== undefined).length;
+    if(n > COLS.filter(c => melhor[c] !== undefined).length) melhor = m;
+    if(n === COLS.length){ hIdx = i; mapa = m; break; }
   }
-  const faltando = COLS.filter(c => mapa[c] === undefined);
+  const faltando = COLS.filter(c => (hIdx < 0 ? melhor : mapa)[c] === undefined);
   if(hIdx < 0 || faltando.length){
     abrirModal('Cabeçalho inválido', 'file-warning',
-      `<p>O arquivo <b>${esc(nomeArq)}</b> não possui as colunas obrigatórias:</p><ul style="margin:8px 0 0 18px">${(faltando.length?faltando:COLS).map(c=>`<li><b>${c}</b></li>`).join('')}</ul>
-       <p style="margin-top:10px">Baixe o modelo e mantenha os cabeçalhos como estão.</p>`,
-      `<button class="btn" onclick="fecharModal();baixarModelo()">${ic('file-down')}Baixar modelo</button><button class="btn solid" onclick="fecharModal()">Fechar</button>`);
+      `<p>O arquivo <b>${esc(nomeArq)}</b> não possui as colunas obrigatórias do modelo <b>${esc(M.nome)}</b>${M.tabela ? ` (aba <b>${esc(M.aba)}</b>, tabela <b>${esc(M.tabela)}</b>)` : ''}:</p>
+       <ul style="margin:8px 0 0 18px">${faltando.map(c => `<li><b>${esc(M.map[c][0])}</b></li>`).join('')}</ul>
+       <p style="margin-top:10px">${mk === 'padrao' ? 'Baixe o modelo e mantenha os cabeçalhos como estão.' : 'Verifique se os nomes das colunas não foram alterados ou selecione outro modelo.'}</p>`,
+      `<button class="btn" onclick="escolherModelo()">${ic('repeat')}Trocar modelo</button>${mk === 'padrao' ? `<button class="btn" onclick="fecharModal();baixarModelo()">${ic('file-down')}Baixar modelo</button>` : ''}<button class="btn solid" onclick="fecharModal()">Fechar</button>`);
     return;
   }
   const validos = [], invalidos = [];
@@ -1308,7 +1509,7 @@ function processar(linhas, nomeArq){
     (reg._erros.length ? invalidos : validos).push(reg);
   }
   if(!validos.length && !invalidos.length){ toast('Nenhuma linha de dados encontrada','er'); return; }
-  pend = { nome:nomeArq, validos, invalidos, tol:0, sel:{}, acao:{} };
+  pend = { nome:nomeArq, modelo:M.nome, validos, invalidos, tol:0, sel:{}, acao:{} };
   abrirConfirmacao();
 }
 
@@ -1427,6 +1628,7 @@ function abrirConfirmacao(){
     </div>
     <div class="chips">
       <span class="chip">${ic('file-spreadsheet','sm')}<b>${esc(pend.nome)}</b></span>
+      <span class="chip">${ic('table-2','sm')}Modelo <b>${esc(pend.modelo || 'Modelo padrão')}</b></span>
       <span class="chip">${ic('tag','sm')}TAGs <b>${porTag.size}</b></span>
       <span class="chip">${ic('calendar-days','sm')}Semanas <b>${new Set(L.map(l=>l.sem.cod)).size}</b></span>
       <span class="chip">${ic('layers','sm')}Sequências <b>${L.length}</b></span>
@@ -1784,12 +1986,195 @@ function limpar(){
   $('bLimpa').onclick = () => { dados = []; ALOC = {}; salvar(); alSalvar(); recalcular(); montarFiltros(); fecharModal(); render(); toast('Dados removidos','ok'); };
 }
 </script>
+<!-- ================= CONFIGURAÇÕES · Usuários e Minas ================= -->
+<style>
+.cfg-tabs{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.cfg-tabs .seg button{padding:8px 16px}
+.cfg-tabs .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cfg-tabs .input{flex:0 1 300px}
+.usr{display:flex;align-items:center;gap:10px;min-width:0}
+.usr .av{width:36px;height:36px;border-radius:50%;background:var(--pri-soft2);color:var(--pri-dark);font-weight:800;font-size:12.5px;display:grid;place-items:center;flex-shrink:0}
+.usr b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.usr small{color:var(--muted);font-size:12px}
+.eu{font-size:10px;font-weight:700;background:var(--pri);color:#fff;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.pf{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+.pf.adm{background:#fdeef0;color:#b91c1c;border-color:#f5c2c7}
+.pf.programador{background:var(--blue-soft);color:var(--blue);border-color:#cdd8fb}
+.pf.executor{background:#fff4e5;color:#b45309;border-color:#f6dfae}
+.pf.usuario{background:#eef2f2;color:#56706e;border-color:#d5e0df}
+.pfp{position:relative;display:inline-block}
+.pfp-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;border-radius:22px;padding:3px 8px 3px 3px;transition:.15s}
+.pfp-btn:hover:not(:disabled){border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-ring)}
+.pfp-btn:disabled{cursor:default;border-color:transparent;background:transparent;padding-right:3px}
+.pfp-btn .chev{color:var(--muted);transition:transform .2s}
+.pfp.open .pfp-btn .chev{transform:rotate(180deg)}
+.pfp-pop{position:fixed;z-index:120;width:250px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--sh-lg);padding:6px;display:flex;flex-direction:column;gap:2px;animation:up .15s}
+.pfp-o{display:flex;align-items:center;gap:10px;border:none;background:transparent;border-radius:10px;padding:8px;text-align:left;width:100%}
+.pfp-o:hover{background:var(--pri-soft)}
+.pfp-o.on{background:var(--pri-soft2)}
+.pfp-o .pi{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex-shrink:0}
+.pfp-o .pi.adm{background:#fdeef0;color:#b91c1c}.pfp-o .pi.programador{background:var(--blue-soft);color:var(--blue)}
+.pfp-o .pi.executor{background:#fff4e5;color:#b45309}.pfp-o .pi.usuario{background:#eef2f2;color:#56706e}
+.pfp-o span.t{flex:1;display:flex;flex-direction:column;line-height:1.3}
+.pfp-o span.t b{font-size:13px}.pfp-o span.t small{font-size:11.5px;color:var(--muted)}
+.pfp-o svg.ok{color:var(--pri)}
+.mn-ord{display:inline-flex;gap:2px}
+.cfg-lock{flex:1;display:flex;align-items:center;justify-content:center}
+.auth input::-ms-reveal,.auth input::-ms-clear{display:none!important}
+</style>
+<script>
+const PERFIS = {
+  adm:        { t:'ADM',         i:'shield-check',   d:'Acesso total e gestão de usuários' },
+  programador:{ t:'Programador', i:'calendar-range', d:'Importa e organiza a programação' },
+  executor:   { t:'Executor',    i:'wrench',         d:'Registra a execução das atividades' },
+  usuario:    { t:'Usuário',     i:'user',           d:'Perfil padrão de acesso' }
+};
+let MINAS_DB = ['Pico','Abóboras','Tamanduá','Horizontes'].map((nome,i) => ({ id:null, nome, ordem:i+1, ativo:true }));
+let USERS = [], EU = null, cfgAba = 'usr', cfgQ = '';
+const ehADM = () => EU?.perfil === 'adm';
+const pfPill = p => { const P = PERFIS[p] || PERFIS.usuario; return `<span class="pf ${p in PERFIS ? p : 'usuario'}">${ic(P.i,'sm')}${P.t}</span>`; };
+const iniciais = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0,2).map(x => x[0].toUpperCase()).join('') || '?';
+function minasAtualizar(){
+  MINAS_DB.sort((a,b) => (a.ordem - b.ordem) || cmpTxt(a.nome,b.nome));
+  MINAS.length = 0; MINAS_DB.forEach(m => MINAS.push(m.nome));
+  OFI.forEach(o => { const m = MINAS_DB.find(x => x.id && x.id === o.minaId); if(m) o.mina = m.nome; else if(!o.minaId){ const n = MINAS_DB.find(x => x.nome === o.mina); if(n) o.minaId = n.id; } });
+}
+async function perfisCarregar(){
+  if(!sb) return;
+  const { data, error } = await sb.from('perfis').select('*').order('created_at');
+  if(error){ console.error('perfis:', error); return; }
+  USERS = data || [];
+  const uid = (await sb.auth.getUser()).data.user?.id;
+  EU = USERS.find(u => u.id === uid) || { id:uid, perfil:'usuario' };
+  if(TELAS.find(t => t.id === tela)?.adm && !ehADM()) trocarTela('inf');
+  montarMenu();
+  if(typeof atualizarTela === 'function' && ['prog','int'].includes(tela) && !$('modal').classList.contains('show')) atualizarTela();
+  if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs();
+}
+function perfisRealtime(){
+  sb.channel('intime-perfis').on('postgres_changes', { event:'*', schema:'public', table:'perfis' }, () => {
+    clearTimeout(perfisRealtime._t); perfisRealtime._t = setTimeout(perfisCarregar, 250);
+  }).subscribe();
+}
+async function mudarPerfil(u, p){
+  if(u.perfil === p) return;
+  if(u.perfil === 'adm' && USERS.filter(x => x.perfil === 'adm').length < 2){ toast('O aplicativo precisa ter ao menos 1 ADM','er'); return; }
+  const ant = u.perfil; u.perfil = p; renderCfg();
+  const { error } = await sb.from('perfis').update({ perfil:p }).eq('id', u.id);
+  if(error){ u.perfil = ant; renderCfg(); toast('Não foi possível alterar o perfil: ' + error.message,'er'); return; }
+  toast(`${u.nome || u.email}: perfil ${PERFIS[p].t}`,'ok');
+  if(u.id === EU.id){ EU.perfil = p; montarMenu(); if(!ehADM()) trocarTela('inf'); }
+}
+function pfPicker(btn, u){
+  document.querySelectorAll('.pfp-pop').forEach(x => x.remove());
+  const r = btn.getBoundingClientRect(), pop = document.createElement('div');
+  pop.className = 'pfp-pop';
+  pop.innerHTML = Object.entries(PERFIS).map(([k,P]) => `<button type="button" class="pfp-o ${u.perfil===k?'on':''}" data-p="${k}">
+    <span class="pi ${k}">${ic(P.i,'sm')}</span><span class="t"><b>${P.t}</b><small>${P.d}</small></span>${u.perfil===k ? ic('check','sm ok') : ''}</button>`).join('');
+  document.body.appendChild(pop);
+  const h = pop.offsetHeight, top = r.bottom + 6 + h > innerHeight ? r.top - h - 6 : r.bottom + 6;
+  pop.style.top = Math.max(8, top) + 'px'; pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 258)) + 'px';
+  btn.closest('.pfp').classList.add('open');
+  const fechar = () => { pop.remove(); btn.closest('.pfp')?.classList.remove('open'); document.removeEventListener('pointerdown', fora, true); };
+  const fora = e => { if(!pop.contains(e.target) && !btn.contains(e.target)) fechar(); };
+  setTimeout(() => document.addEventListener('pointerdown', fora, true));
+  pop.querySelectorAll('[data-p]').forEach(o => o.onclick = () => { fechar(); mudarPerfil(u, o.dataset.p); });
+  icons();
+}
+function renderCfg(){
+  const el = $('cfgBody');
+  if(!ehADM()){ el.innerHTML = `<div class="card cfg-lock"><div class="empty"><div class="eic">${ic('lock')}</div><b>Acesso restrito</b>Somente o perfil ADM acessa as configurações.</div></div>`; icons(); return; }
+  const q = norm(cfgQ);
+  const cnt = k => USERS.filter(u => u.perfil === k).length;
+  const L = USERS.filter(u => !q || norm(`${u.nome} ${u.email} ${PERFIS[u.perfil]?.t}`).includes(q))
+    .sort((a,b) => (a.id === EU.id ? -1 : b.id === EU.id ? 1 : 0) || cmpTxt(a.nome || a.email, b.nome || b.email));
+  el.innerHTML = `<div class="cfg-tabs"><div class="right"><div class="input">${ic('search')}<input id="cfgQ" placeholder="Buscar nome, e-mail ou perfil..." value="${esc(cfgQ)}"></div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="ki">${ic('users')}</div><div><span>Usuários</span><strong>${USERS.length}</strong></div></div>
+      ${Object.entries(PERFIS).map(([k,P]) => `<div class="kpi"><div class="ki">${ic(P.i)}</div><div><span>${P.t}</span><strong>${cnt(k)}</strong></div></div>`).join('')}
+    </div>
+    <div class="panel"><div class="tbl-wrap"><table class="rsp"><thead><tr><th>Usuário</th><th>E-mail</th><th>Perfil</th><th>Cadastro</th></tr></thead><tbody>
+    ${L.length ? L.map(u => `<tr>
+      <td data-l="Usuário"><div class="usr"><span class="av">${esc(iniciais(u.nome || u.email))}</span><div style="min-width:0"><b>${esc(u.nome || '—')}${u.id === EU.id ? '<span class="eu">você</span>' : ''}</b></div></div></td>
+      <td data-l="E-mail">${esc(u.email || '')}</td>
+      <td data-l="Perfil"><div class="pfp"><button type="button" class="pfp-btn" data-u="${u.id}" title="Alterar perfil">${pfPill(u.perfil)}${ic('chevron-down','sm chev')}</button></div></td>
+      <td data-l="Cadastro" class="nw">${u.created_at ? fmtDH(new Date(u.created_at)) : '—'}</td></tr>`).join('')
+      : `<tr><td colspan="4"><div class="empty"><div class="eic">${ic('search-x')}</div>Nenhum usuário encontrado.</div></td></tr>`}
+    </tbody></table></div></div>`;
+  $('cfgQ').oninput = e => { cfgQ = e.target.value; const p = e.target.selectionStart; renderCfg(); $('cfgQ').focus(); $('cfgQ').setSelectionRange(p,p); };
+  el.querySelectorAll('[data-u]').forEach(b => b.onclick = () => pfPicker(b, USERS.find(u => u.id === b.dataset.u)));
+  icons();
+}
+let minQ = '';
+function renderMin(){
+  const el = $('minBody'), adm = ehADM(), q = norm(minQ);
+  const L = MINAS_DB.filter(m => !q || norm(m.nome).includes(q));
+  const ativas = MINAS_DB.filter(m => m.ativo).length;
+  $('hActMin').innerHTML = adm ? `<button class="btn solid" id="mnNova">${ic('plus')}Nova mina</button>` : '';
+  el.innerHTML = `<div class="kpis">
+      <div class="kpi"><div class="ki">${ic('mountain')}</div><div><span>Minas</span><strong>${MINAS_DB.length}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('circle-check')}</div><div><span>Ativas</span><strong>${ativas}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('circle-pause')}</div><div><span>Inativas</span><strong>${MINAS_DB.length - ativas}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('factory')}</div><div><span>Oficinas</span><strong>${OFI.length}</strong></div></div>
+    </div>
+    <div class="cfg-tabs"><div class="right"><div class="input">${ic('search')}<input id="minQ" placeholder="Buscar mina..." value="${esc(minQ)}"></div></div></div>
+    ${adm ? '' : `<div class="auth-msg er" style="margin-bottom:12px;background:var(--pri-soft);color:var(--pri-dark);border-color:var(--pri-soft2)">${ic('info','sm')}<span>Somente o perfil ADM pode cadastrar, editar ou excluir minas.</span></div>`}
+    <div class="panel"><div class="tbl-wrap"><table class="rsp"><thead><tr>${adm ? '<th class="c">Ordem</th>' : ''}<th>Mina</th><th class="c">Situação</th><th class="c">Oficinas</th>${adm ? '<th style="text-align:right">Ações</th>' : ''}</tr></thead><tbody>
+    ${L.length ? L.map(m => { const n = OFI.filter(o => o.minaId === m.id).length, i = MINAS_DB.indexOf(m);
+      return `<tr>
+      ${adm ? `<td data-l="Ordem" class="c"><div class="mn-ord"><button class="btn icon sm" data-up="${m.id}" title="Subir" ${i ? '' : 'disabled'}>${ic('chevron-up','sm')}</button><button class="btn icon sm" data-dw="${m.id}" title="Descer" ${i < MINAS_DB.length - 1 ? '' : 'disabled'}>${ic('chevron-down','sm')}</button></div></td>` : ''}
+      <td data-l="Mina"><span class="mina">${ic('mountain','sm')}${esc(m.nome)}</span></td>
+      <td data-l="Situação" class="c">${m.ativo ? `<span class="pill ok">${ic('check','sm')}Ativa</span>` : '<span class="pill gr">Inativa</span>'}</td>
+      <td data-l="Oficinas" class="c">${n ? `<span class="pill ok">${n}</span>` : '<span class="pill gr">0</span>'}</td>
+      ${adm ? `<td data-l="Ações"><div class="ops"><button class="btn icon sm" data-ed="${m.id}" title="Editar">${ic('pencil','sm')}</button><button class="btn icon sm danger" data-rm="${m.id}" title="Excluir">${ic('trash-2','sm')}</button></div></td>` : ''}</tr>`; }).join('')
+      : `<tr><td colspan="5"><div class="empty"><div class="eic">${ic('mountain')}</div>Nenhuma mina encontrada.</div></td></tr>`}
+    </tbody></table></div></div>`;
+  $('minQ').oninput = e => { minQ = e.target.value; const p = e.target.selectionStart; renderMin(); $('minQ').focus(); $('minQ').setSelectionRange(p,p); };
+  if($('mnNova')) $('mnNova').onclick = () => formMina();
+  el.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => formMina(b.dataset.ed));
+  el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => excluirMina(b.dataset.rm));
+  const mover = (id, d) => { const i = MINAS_DB.findIndex(m => m.id === id), j = i + d; if(j < 0 || j >= MINAS_DB.length) return;
+    [MINAS_DB[i], MINAS_DB[j]] = [MINAS_DB[j], MINAS_DB[i]]; MINAS_DB.forEach((m,k) => m.ordem = k + 1); minasAtualizar(); ofSalvar(); renderMin(); };
+  el.querySelectorAll('[data-up]').forEach(b => b.onclick = () => mover(b.dataset.up, -1));
+  el.querySelectorAll('[data-dw]').forEach(b => b.onclick = () => mover(b.dataset.dw, 1));
+  icons();
+}
+function formMina(id){
+  const m = id ? MINAS_DB.find(x => x.id === id) : { nome:'', ativo:true };
+  abrirModal(id ? 'Editar mina' : 'Nova mina', 'mountain', `
+    <form class="form" id="fMn" autocomplete="off">
+      <label class="f full"><span class="fl">Nome da mina<em>*</em></span><input type="text" id="mnNome" maxlength="60" value="${esc(m.nome)}" placeholder="Ex.: Pico"></label>
+      <div class="pat-card"><div class="ai">${ic('power')}</div><div><b>Mina ativa</b><small>Minas inativas não aparecem no cadastro de novas oficinas</small></div>
+        <label class="switch"><input type="checkbox" id="mnAt" ${m.ativo ? 'checked' : ''}><span class="tr"></span><span id="mnAtT">${m.ativo ? 'Sim' : 'Não'}</span></label></div>
+      <div class="ferr"></div><button type="submit" hidden></button>
+    </form>`,
+    `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn solid" onclick="$('fMn').requestSubmit()">${ic('save')}Salvar</button>`);
+  $('mnAt').onchange = e => $('mnAtT').textContent = e.target.checked ? 'Sim' : 'Não';
+  $('fMn').onsubmit = e => {
+    e.preventDefault();
+    const nome = $('mnNome').value.trim();
+    if(!nome) return erroForm('Informe o nome da mina.', 'mnNome');
+    if(MINAS_DB.some(x => x.id !== id && norm(x.nome) === norm(nome))) return erroForm(`A mina "${nome}" já existe.`, 'mnNome');
+    if(id){ m.nome = nome; m.ativo = $('mnAt').checked; }
+    else MINAS_DB.push({ id:novoId(), nome, ativo:$('mnAt').checked, ordem:MINAS_DB.length + 1 });
+    minasAtualizar(); ofSalvar(); fecharModal(); renderMin(); toast(id ? 'Mina atualizada' : 'Mina cadastrada','ok');
+  };
+  setTimeout(() => $('mnNome').focus(), 50);
+}
+function excluirMina(id){
+  const m = MINAS_DB.find(x => x.id === id), n = OFI.filter(o => o.minaId === id).length;
+  if(n){ abrirModal('Excluir mina', 'mountain', `<p>A mina <b>${esc(m.nome)}</b> possui <b>${n}</b> oficina(s) cadastrada(s) e não pode ser excluída.</p><p style="margin-top:8px;color:var(--muted)">Exclua ou mova as oficinas, ou deixe a mina como <b>inativa</b>.</p>`); return; }
+  abrirModal('Excluir mina', 'trash-2', `<p>Excluir a mina <b>${esc(m.nome)}</b>?</p>`,
+    `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn red" id="bDelMn">${ic('trash-2')}Excluir</button>`);
+  $('bDelMn').onclick = () => { MINAS_DB = MINAS_DB.filter(x => x.id !== id); MINAS_DB.forEach((x,k) => x.ordem = k + 1); minasAtualizar(); ofSalvar(); fecharModal(); renderMin(); toast('Mina excluída','ok'); };
+}
+</script>
 <script>
 /* =====================================================================
    OFICINAS – cadastro (Mina, Nome, Qtd BOX, Possui pátio)
    BOX-01..N e PÁTIO são GERADOS pelo cadastro (não editáveis)
    ===================================================================== */
-const MINAS = ['Pico','Abóboras','Tamanduá','Horizontes'];
+const MINAS = ['Pico','Abóboras','Tamanduá','Horizontes'];   // preenchida a partir da tabela minas
 const PATIO = 'PÁTIO';
 let OFI = [], ALOC = {};          // ALOC[loteId] = { of: idOficina, loc: 'BOX-01' | 'PÁTIO' }
 let ofMina = '', ofSort = 'mina', ofAsc = true;
@@ -1894,7 +2279,7 @@ function formOficina(id){
   abrirModal(id ? 'Editar oficina' : 'Nova oficina', 'factory', `
     <form class="form" id="fOf" autocomplete="off">
       <div class="f full"><span class="fl">Mina<em>*</em></span>
-        <div class="mina-seg" id="ofMina">${MINAS.map(m => `<button type="button" data-m="${m}" class="${m===mina?'on':''}">${ic('mountain')}${m}</button>`).join('')}</div></div>
+        <div class="mina-seg" id="ofMina">${MINAS.filter(m => m === mina || MINAS_DB.find(x => x.nome === m)?.ativo !== false).map(m => `<button type="button" data-m="${m}" class="${m===mina?'on':''}">${ic('mountain')}${m}</button>`).join('')}</div></div>
       <label class="f"><span class="fl">Nome<em>*</em></span><input type="text" id="ofNome" maxlength="80" value="${esc(o.nome)}" placeholder="Ex.: Oficina de Caminhões"></label>
       <div class="f"><span class="fl">Quantidade de BOX<em>*</em></span>
         <div class="num"><button type="button" id="bxM">${ic('minus','sm')}</button><input id="ofQtd" type="number" min="0" max="99" value="${o.qtdBox}"><button type="button" id="bxP">${ic('plus','sm')}</button></div></div>
@@ -1936,7 +2321,7 @@ function formOficina(id){
     if(OFI.some(x => x.id !== id && x.mina === mina && norm(x.nome) === norm(nome))) return erroForm(`Já existe a oficina "${nome}" na mina ${mina}.`, 'ofNome');
     if(qtd() === 0 && !$('ofPat').checked) return erroForm('A oficina precisa ter ao menos 1 BOX ou pátio.', 'ofQtd');
     perdidos().forEach(k => delete ALOC[k]);
-    const d = { mina, nome, qtdBox:qtd(), patio:$('ofPat').checked };
+    const d = { mina, minaId:MINAS_DB.find(m => m.nome === mina)?.id || null, nome, qtdBox:qtd(), patio:$('ofPat').checked };
     if(id) Object.assign(o, d);
     else OFI.push({ id:uid(), ...d, criadoEm:new Date().toISOString() });
     ofSalvar(); alSalvar(); fecharModal(); renderOfi();
@@ -2022,7 +2407,7 @@ function renderSlots(){
 function slotHtml(o, loc, ids){
   const pat = loc === PATIO;
   const L = ids.filter(k => ALOC[k].loc === loc).map(k => LMAP.get(k)).sort((a,b) => a.ini - b.ini);
-  const tags = new Set(L.map(l => l.tag)).size, nOMVE = L.reduce((n,l) => n + l.itens.filter(r => r.OMVE).length, 0);
+  const tags = new Set(L.map(l => l.tag)).size;
   const cards = L.map(l => {
     const c = corLote(l.id), nOrd = new Set(l.itens.map(r => r.Ordem)).size;
     return `<div class="al ${l.cor?'cor':''}" draggable="true" data-id="${esc(l.id)}" style="--c:${c}" title="${l.cor?'Corretiva · ':''}Arraste para outro local">
@@ -2042,7 +2427,7 @@ function slotHtml(o, loc, ids){
   return `<div class="slot ${pat?'patio':''} ${L.length?'':'free'}" data-loc="${esc(loc)}" style="--sp:${sp}">
     <div class="s-h"><div class="si">${ic(pat ? 'map-pinned' : 'warehouse')}</div>
       <div><b>${esc(loc)}</b><small>${L.length ? `${L.length} programação(ões) · ${tags} equip.` : 'Disponível'}</small></div>
-      ${nOMVE ? omveBadge(nOMVE) : ''}<span class="st">${L.length ? 'Ocupado' : 'Livre'}</span></div>
+      <span class="st">${L.length ? 'Ocupado' : 'Livre'}</span></div>
     <div class="s-b">${cards || `<div class="s-free">${ic('package-open')}<span>Sem programação</span></div>`}</div>
     <div class="s-f"><button class="btn sm solid" data-at="${esc(loc)}">${ic('plus','sm')}Atribuir programação</button></div>
   </div>`;
@@ -2850,6 +3235,17 @@ function renderInf(){
   const txtOMVE = G.omve.length
     ? `${lk('omve', pl(G.omve.length,'programação possui','programações possuem'))} atividade crítica de segurança identificada como OM vermelha, totalizando <b>${pl(omveAtv,'atividade OMVE','atividades OMVE')}</b> ${periodo}. ${G.omveExec.length ? `${lk('omveExec', pl(G.omveExec.length,'está em execução','estão em execução'))} neste momento.` : 'Nenhuma está em execução neste momento.'} A lista informa mina, oficina, BOX ou pátio e equipamento para reforçar a atenção operacional.`
     : `Nenhuma atividade marcada como OMVE foi encontrada ${periodo}.`;
+  /* canceladas */
+  const cancL = [...G.can].sort((a,b) => b.p.can - a.p.can).slice(0, 8).map(x => {
+    const cs = x.l.itens.filter(r => stDe(r)?.st === 'can').sort((a,b) => String(stDe(b).em).localeCompare(String(stDe(a).em)));
+    const ult = stDe(cs[0]);
+    return `<li><button class="lk2" data-sq="${esc(x.l.id)}"><b>${esc(x.l.tag)}</b> · ${esc(x.l.id)} · ${x.o ? `${esc(x.mina)} · ${esc(x.o.nome)} · ${esc(x.loc)}` : 'sem alocação'} — <b>${pl(x.p.can,'atividade cancelada','atividades canceladas')}</b> de ${x.l.itens.length}${ult?.obs ? `<span class="cn-m">Último motivo: “${esc(ult.obs)}”</span>` : ''}</button></li>`;
+  }).join('');
+  const pctCan = E.ativ ? Math.round(nCan / E.ativ * 100) : 0;
+  const canCor = G.can.filter(x => x.l.cor).length;
+  const txtCanc = G.can.length
+    ? `${lk('can', pl(G.can.length,'programação teve','programações tiveram'))} atividades canceladas ${periodo}, somando <b>${pl(nCan,'atividade cancelada','atividades canceladas')}</b> (${pctCan}% do total programado). Atividades canceladas deixam de contar no índice de execução, por isso é importante acompanhar os motivos registrados.${canCor ? ` Dessas programações, ${pl(canCor,'é corretiva','são corretivas')}.` : ''}`
+    : `Nenhuma atividade foi cancelada ${periodo}. Toda a programação segue válida para o cálculo de execução.`;
   /* plantão */
   const plantao = G.fin6.length ? G.fin6.slice(0, 6).map(x => `<button class="pt" data-sq="${esc(x.l.id)}"><span class="pt-d">${ic('flag','sm')}</span>
       <span><small>Finalizada no sistema ${relTempo(x.ps.fim)} · ${fmtDH(new Date(x.ps.fim))}</small><b>${esc(x.l.tag)} finalizada${x.o ? ` no ${esc(x.loc)} · ${esc(x.o.nome)}` : ''}</b><small>Programação da semana ${esc(x.l.sem.label)} · ${x.p.pct}% executado${x.p.nex ? ` · ${x.p.nex} não executada(s)` : ''}</small></span></button>`).join('')
@@ -2873,6 +3269,7 @@ function renderInf(){
     A(`<article class="art ${G.aguard.length ? 'seq' : ''}"><span class="kick bl">${ic('arrow-right-to-line','sm')}Sequência de manutenção</span><h3>${G.aguard.length ? pl(G.aguard.length,'programação aguardando etapa anterior','programações aguardando etapa anterior') : 'Sem programações encadeadas'}</h3><p>${txtSeq}</p>${seqL ? `<ul class="tl-l b">${seqL}</ul>` : ''}</article>`),
     A(`<article class="art ${G.omve.length ? 'safety' : ''}"><span class="kick sf">${ic('shield-alert','sm')}Segurança</span><h3>${G.omve.length ? pl(G.omve.length,'programação com OM vermelha','programações com OM vermelha') : 'Sem OM vermelha na semana'}</h3><p>${txtOMVE}</p>${omveL ? `<ul class="tl-l safety">${omveL}</ul>` : ''}</article>`),
     A(`<article class="art ${G.par.length ? 'alert' : ''}"><span class="kick wr">${ic('circle-pause','sm')}Alerta</span><h3>${G.par.length ? 'Paralisações exigem atenção' : 'Sem paralisações'}</h3><p>${txtPar}${txtCan}</p></article>`),
+    A(`<article class="art ${G.can.length ? 'canc' : ''}"><span class="kick cn">${ic('ban','sm')}Cancelamentos</span><h3>${G.can.length ? pl(G.can.length,'programação com atividades canceladas','programações com atividades canceladas') : 'Sem atividades canceladas'}</h3><p>${txtCanc}</p>${cancL ? `<ul class="tl-l cn">${cancL}</ul>` : ''}</article>`),
     A(`<article class="art ${G.cor.length ? 'cor' : ''}"><span class="kick er">${ic('siren','sm')}Corretivas</span><h3>${G.cor.length ? pl(G.cor.length,'corretiva registrada','corretivas registradas') : 'Sem corretivas registradas'} ${periodo}</h3><p>${txtCor}</p>${corL ? `<ul class="tl-l">${corL}</ul>` : ''}</article>`),
     A(`<article class="art"><span class="kick">${ic('factory','sm')}Oficinas</span><h3>Ocupação dos BOX e pátios</h3><p>${txtOf}</p>${mapa ? `<div class="omap">${mapa}</div><div class="olg"><span><i class="u"></i>Ocupado</span><span><i></i>Livre</span><span><i class="p"></i>Pátio livre</span></div>` : ''}</article>`),
     A(`<article class="art"><span class="kick gr">${ic('trending-up','sm')}Reta final</span><h3>Acima de 80% de execução</h3><p>${txtReta}</p>${reta ? `<div class="rfl">${reta}</div>` : ''}</article>`),
@@ -2900,7 +3297,9 @@ function renderInf(){
 
 /* ---------- paginação do Informativo ---------- */
 let infPag = 0, infPagSem = null, infShow = null;
+let infUlt = null;
 function infPaginar(el, top, hero, blocos){
+  infUlt = { top, hero, blocos };
   el.innerHTML = top + `<div class="pg-v" id="pgV"></div><div class="pg-nav" id="pgNav"></div>`;
   const v = $('pgV'), gap = 16;
   const W = v.clientWidth || el.clientWidth, cols = W >= 1100 ? 2 : 1;
@@ -3026,15 +3425,16 @@ let sb = null, sbOk = false, sbCarregando = false, sbTimer = null, sbGravando = 
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); }));
 const isUuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v||''));
 /* espelho do banco (linhas cruas) + "fotografia" do que já está gravado, para enviar SÓ o que mudou */
-const SB_TABS = ['oficinas','programacoes','atividades','alocacoes'];
-const SB_PK = { oficinas:'id', programacoes:'id', atividades:'id', alocacoes:'programacao_id' };
-const sbRaw  = { oficinas:new Map(), programacoes:new Map(), atividades:new Map(), alocacoes:new Map() };
-const sbSnap = { oficinas:new Map(), programacoes:new Map(), atividades:new Map(), alocacoes:new Map() };
+const SB_TABS = ['minas','oficinas','programacoes','atividades','alocacoes'];
+const SB_PK = { minas:'id', oficinas:'id', programacoes:'id', atividades:'id', alocacoes:'programacao_id' };
+const sbRaw  = { minas:new Map(), oficinas:new Map(), programacoes:new Map(), atividades:new Map(), alocacoes:new Map() };
+const sbSnap = { minas:new Map(), oficinas:new Map(), programacoes:new Map(), atividades:new Map(), alocacoes:new Map() };
 const tsN = t => t ? new Date(t).toISOString() : null;
 const SHAPE = {
-  oficinas:     r => ({ id:r.id, mina:r.mina, nome:r.nome, qtd_box:+r.qtd_box, patio:!!r.patio }),
+  minas:        r => ({ id:r.id, nome:r.nome, ordem:+r.ordem, ativo:!!r.ativo }),
+  oficinas:     r => ({ id:r.id, mina_id:r.mina_id, nome:r.nome, qtd_box:+r.qtd_box, patio:!!r.patio }),
   programacoes: r => ({ id:r.id, tag:r.tag, semana:r.semana, corretiva:!!r.corretiva, status:r.status || 'ni',
-                        iniciada_em:tsN(r.iniciada_em), finalizada_em:tsN(r.finalizada_em), reaberta_em:tsN(r.reaberta_em), seguir_com:r.seguir_com || null }),
+                        iniciada_em:tsN(r.iniciada_em), finalizada_em:tsN(r.finalizada_em), reaberta_em:tsN(r.reaberta_em), seguir_com:r.seguir_com || null, importado_por:r.importado_por || null }),
   atividades:   r => ({ id:r.id, programacao_id:r.programacao_id, tag:r.tag, ordem:r.ordem, atividade:r.atividade, inicio:tsN(r.inicio), fim:tsN(r.fim),
                         corretiva:!!r.corretiva, omve:!!r.omve, origem:r.origem || 'importacao', status:r.status || null, motivo:r.motivo || null, status_em:tsN(r.status_em) }),
   alocacoes:    r => ({ programacao_id:r.programacao_id, oficina_id:r.oficina_id, local:r.local })
@@ -3060,8 +3460,10 @@ async function sbTodos(tab){
 /* monta as estruturas da tela a partir do espelho do banco (sem rede) */
 function montarDeRaw(){
   const P = sbRaw.programacoes;
-  OFI = [...sbRaw.oficinas.values()].map(o => ({ id:o.id, mina:o.mina, nome:o.nome, qtdBox:o.qtd_box, patio:o.patio, criadoEm:o.created_at }));
-  ST = {}; PS = {}; SEG = {}; ALOC = {};
+  MINAS_DB = [...sbRaw.minas.values()].map(m => ({ id:m.id, nome:m.nome, ordem:+m.ordem || 0, ativo:m.ativo !== false }));
+  OFI = [...sbRaw.oficinas.values()].map(o => ({ id:o.id, minaId:o.mina_id, mina:o.mina || '', nome:o.nome, qtdBox:o.qtd_box, patio:o.patio, criadoEm:o.created_at }));
+  minasAtualizar();
+  ST = {}; PS = {}; SEG = {}; ALOC = {}; IMP = {};
   dados = [...sbRaw.atividades.values()].map(a => {
     const p = P.get(a.programacao_id) || {};
     const d = { _id:a.id, TAG:a.tag, Ordem:a.ordem, Atividade:a.atividade, Inicio:new Date(a.inicio), Fim:new Date(a.fim),
@@ -3076,6 +3478,7 @@ function montarDeRaw(){
   P.forEach(p => {
     if(p.status && p.status !== 'ni') PS[p.id] = { st:p.status, ini:p.iniciada_em, ...(p.finalizada_em ? {fim:p.finalizada_em} : {}), ...(p.reaberta_em ? {reaberto:p.reaberta_em} : {}) };
     if(p.seguir_com) SEG[p.id] = p.seguir_com;
+    if(p.importado_por) IMP[p.id] = p.importado_por;
   });
   sbRaw.alocacoes.forEach(a => ALOC[a.programacao_id] = { of:a.oficina_id, loc:a.local });
   recalcular(); montarFiltros(); cacheLocalLater();
@@ -3135,13 +3538,15 @@ function linhasAtuais(){
   dados.forEach(d => { if(!isUuid(d._id)) d._id = novoId(); });
   const lotes = groupBy(dados, d => d.Lote), ofIds = new Set(OFI.map(o => o.id));
   return {
-    oficinas: OFI.map(o => ({ id:o.id, mina:o.mina, nome:o.nome, qtd_box:o.qtdBox, patio:!!o.patio })),
+    minas: MINAS_DB.filter(m => isUuid(m.id)).map(m => ({ id:m.id, nome:m.nome, ordem:m.ordem, ativo:!!m.ativo })),
+    oficinas: OFI.map(o => ({ id:o.id, mina_id:o.minaId || MINAS_DB.find(m => m.nome === o.mina)?.id || null, nome:o.nome, qtd_box:o.qtdBox, patio:!!o.patio })),
     programacoes: [...lotes].map(([id, it]) => {
       let mi = Infinity; it.forEach(d => { if(+d.Inicio < mi) mi = +d.Inicio; });
       const ps = PS[id];
       return { id, tag:it[0].TAG, semana:semanaDe(new Date(mi)).label, corretiva:it.some(d => d.Tipo === 'COR'),
         status:ps ? ps.st : 'ni', iniciada_em:tsN(ps?.ini), finalizada_em:tsN(ps?.fim), reaberta_em:tsN(ps?.reaberto),
-        seguir_com:(SEG[id] && lotes.has(SEG[id])) ? SEG[id] : null };
+        seguir_com:(SEG[id] && lotes.has(SEG[id])) ? SEG[id] : null,
+        importado_por:IMP[id] || (!sbSnap.programacoes.has(id) && EU?.id ? (IMP[id] = EU.id) : null) };
     }),
     atividades: dados.map(d => { const s = ST[stKey(d)];
       return { id:d._id, programacao_id:d.Lote, tag:d.TAG, ordem:d.Ordem, atividade:d.Atividade,
@@ -3167,6 +3572,7 @@ async function sbGravar(){
     // ordem segura para as chaves estrangeiras
     await sbApagar('alocacoes', del.alocacoes);
     await sbApagar('atividades', del.atividades);
+    await sbUpsert('minas', up.minas);
     await sbUpsert('oficinas', up.oficinas);
     const novasProg = new Set(up.programacoes.filter(p => !sbSnap.programacoes.has(p.id)).map(p => p.id));
     if(up.programacoes.some(p => p.seguir_com && novasProg.has(p.seguir_com))){
@@ -3177,6 +3583,7 @@ async function sbGravar(){
     await sbUpsert('alocacoes', up.alocacoes);
     await sbApagar('programacoes', del.programacoes);
     await sbApagar('oficinas', del.oficinas);
+    await sbApagar('minas', del.minas);
     // atualiza espelho e fotografia com o que foi gravado
     SB_TABS.forEach(t => {
       const pk = SB_PK[t];
@@ -3235,13 +3642,21 @@ document.addEventListener('visibilitychange', () => {
 });
 function atualizarTela(){
   menuLater();
-  if(tela === 'inf') renderInf(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else renderOfi();
+  if(tela === 'inf') renderInf(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs(); else renderOfi();
 }
 /* ---------- primeira carga + envio dos dados locais existentes ---------- */
 async function sbIniciar(){
-  if(!window.supabase){ sbStatus('off', 'Biblioteca do Supabase não carregou (sem internet?). Usando dados deste navegador.'); return; }
+  if(!window.supabase){ authOffline(); return; }
   sb = window.supabase.createClient(SB_URL, SB_KEY);
+  let session = null;
+  try{ session = (await sb.auth.getSession()).data.session; }catch(e){}
+  if(!session) session = await authGate();
+  document.body.classList.remove('locked');
+  authUser(session.user);
+  sb.auth.onAuthStateChange((ev, s) => { if(ev === 'SIGNED_OUT') location.reload(); else if(s) authUser(s.user); });
   const locais = { dados:dados.slice(), OFI:OFI.slice(), ALOC:{...ALOC}, ST:{...ST}, PS:{...PS}, SEG:{...SEG} };
+  await perfisCarregar(); perfisRealtime();
+  await exmCarregar(); exmRealtime();
   if(!await sbCarregar()) return;
   const bancoVazio = !OFI.length && !dados.length;
   if(bancoVazio && (locais.dados.length || locais.OFI.length)){
@@ -3266,7 +3681,10 @@ const TELAS = [
   { id:'inf',  sigla:'INF', icon:'newspaper', nome:'Informativo', desc:'Notícias e destaques', sub:'Panorama da programação, execução e ocupação das oficinas', sec:'Visão geral' },
   { id:'prog', sigla:'PRG', icon:'calendar-range', nome:'Programação', desc:'Importar e sequenciar',     sub:'Programação por TAG · Semana (seg–dom) · Sequência', sec:'Planejamento' },
   { id:'int',  sigla:'INT', icon:'timer',          nome:'IN TIME',     desc:'Alocação em BOX e pátio',   sub:'Atribuição das programações aos BOX e pátios',        sec:'Planejamento' },
-  { id:'ofi',  sigla:'OFI', icon:'factory',        nome:'Oficinas',    desc:'Controle de cadastros',     sub:'Cadastro de oficinas · Mina · BOX · Pátio',           sec:'Cadastros' }
+  { id:'min',  sigla:'MIN', icon:'mountain',       nome:'Minas',       desc:'Cadastro de minas',         sub:'Dimensão de minas · Ordem · Situação',                sec:'Cadastros', adm:true },
+  { id:'acs',  sigla:'ACS', icon:'key-round',      nome:'Acessos',     desc:'Permissão por oficina',     sub:'Oficinas em que cada executor pode agir',             sec:'Cadastros', adm:true },
+  { id:'ofi',  sigla:'OFI', icon:'factory',        nome:'Oficinas',    desc:'Controle de cadastros',     sub:'Cadastro de oficinas · Mina · BOX · Pátio',           sec:'Cadastros', adm:true },
+  { id:'cfg',  sigla:'CFG', icon:'settings',       nome:'Configurações', desc:'Usuários e perfis',       sub:'Usuários · Perfis de acesso',     sec:'Administração', adm:true }
 ];
 let tela = 'prog';
 const side = $('side');
@@ -3275,8 +3693,8 @@ const hoverOK = () => matchMedia('(hover:hover) and (pointer:fine)').matches;
 function montarMenu(){
   let sec = '', h = '';
   const semHoje = semanaDe(new Date()).label;
-  const cnt = { prog:LOTES.filter(l => l.sem.label === semHoje).length, int:LOTES.filter(l => psDe(l.id)?.st === 'ex').length, ofi:OFI.length };
-  TELAS.forEach(t => {
+  const cnt = { prog:LOTES.filter(l => l.sem.label === semHoje).length, int:LOTES.filter(l => psDe(l.id)?.st === 'ex').length, ofi:OFI.length, min:MINAS_DB.length, acs:USERS.filter(u => u.perfil === 'executor').length, cfg:0 };
+  TELAS.filter(t => !t.adm || ehADM()).forEach(t => {
     if(t.sec !== sec){ sec = t.sec; h += `<div class="sb-sec"><span>${esc(sec)}</span></div>`; }
     const n = cnt[t.id];
     h += `<button class="sb-it ${t.id===tela?'active':''}" data-s="${t.id}" title="${esc(t.nome)}">
@@ -3307,13 +3725,14 @@ $('sbPin').onclick = () => {
 matchMedia('(max-width:900px)').addEventListener('change', () => { if(side.classList.contains('pinned')) $('sbPin').click(); fecharMenu(); });
 
 function trocarTela(s){
+  if(TELAS.find(t => t.id === s)?.adm && !ehADM()) s = 'inf';
   tela = s;
   const T = TELAS.find(t => t.id === s);
   $('hTit').textContent = T.nome; $('hSub').textContent = T.sub; $('hIcon').innerHTML = ic(T.icon);
-  $('scrInf').hidden = s !== 'inf'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi';
-  $('hActInf').hidden = s !== 'inf'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi';
+  $('scrInf').hidden = s !== 'inf'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs';
+  $('hActInf').hidden = s !== 'inf'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs';
   try{ localStorage.setItem('importador_tela', s); }catch(e){}
-  if(s === 'inf') renderInf(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else renderOfi();
+  if(s === 'inf') renderInf(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else renderOfi();
   montarMenu();
 }
 
@@ -3333,17 +3752,18 @@ function abrirAjuda(){
   abrirModal('Como usar', 'circle-help', `
     <ol>
       <li><b>Programação</b>: baixe o modelo (<b>TAG, Ordem, Atividade, OMVE, Inicio, Fim</b> em dd/mm/aaaa hh:mm; só data = 00:00) e importe. As atividades formam <b>sequências</b> por TAG e o código é <b>TAG-AAAASS-n</b>.</li>
+      <li><b>Programação Semanal (IW49N)</b>: em <b>Importar</b> escolha esse modelo. É lida a aba <b>Programação_Semanal</b> (tabela <b>Base_IW49N</b>) com as colunas TAG, Ordem, TxtDesc.Oper., OMVE, Inicio Programação e Término Programação.</li>
       <li><b>Semana</b>: seg a dom, numerada pelo <b>domingo</b>. Hoje: <b>${s.label}</b> (${fmtD(s.seg)} a ${fmtD(s.dom)}).</li>
       <li>Se a planilha tiver <b>TAG + semana</b> já existentes, escolha <b>Substituir programação</b> ou <b>Adicionar</b> para cada uma.</li>
       <li><b>Oficinas</b>: cadastre Mina, Nome, Quantidade de BOX e se possui pátio. Os locais <b>BOX-01…N</b> e <b>PÁTIO</b> são gerados automaticamente.</li>
       <li><b>IN TIME</b>: escolha a oficina e a semana; em cada BOX/PÁTIO use <b>Atribuir programação</b> (várias por local). Arraste os cards entre locais para mover.</li>
     </ol>
-    <p style="margin-top:10px;color:var(--muted)">Os dados ficam salvos apenas neste navegador.</p>`);
+    <p style="margin-top:10px;color:var(--muted)">Os dados ficam salvos no banco e são compartilhados entre os usuários logados.</p>`);
 }
 
 /* ================= EVENTOS / INÍCIO ================= */
 const drop = $('drop');
-drop.onclick = () => $('file').click();
+drop.onclick = () => escolherModelo();
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
 drop.addEventListener('drop', e => lerArquivo(e.dataTransfer.files[0]));
@@ -3366,7 +3786,6 @@ ofCarregar(); alCarregar(); carregar(); recalcular(); montarFiltros();
 if(localStorage.getItem('menu_fixo') && !isMob() && innerWidth > 900) $('sbPin').click();
 const tIni = localStorage.getItem('importador_tela');
 trocarTela('inf');   // o aplicativo sempre abre no Informativo
-sbIniciar();
 </script>
 <!-- ===================================================================
      PATCH · IN TIME responsivo (cards de BOX/PÁTIO + área com scroll)
@@ -3431,5 +3850,414 @@ function colsSlots(){
 })();
 </script>
 
+<!-- ================= PERMISSÕES · Executor x Oficina · Exclusão por programador ================= -->
+<style>
+.ro-ban{display:flex;align-items:center;gap:10px;background:#fff8e6;border:1px solid #f6dfae;color:#8a5a00;border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.4}
+.ro-ban b{color:#6b4500}
+.ro-ban.sq{margin-bottom:12px}
+.al.ro{cursor:default}
+.acs-chips{display:flex;flex-wrap:wrap;gap:6px}
+.acs-c{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#fff;color:var(--muted);border-radius:20px;padding:5px 12px 5px 8px;font-size:12.5px;font-weight:600;transition:.15s}
+.acs-c:hover:not(:disabled){border-color:var(--pri);color:var(--pri-dark)}
+.acs-c .bx{width:16px;height:16px;border-radius:5px;border:1.5px solid #b7c6c5;display:grid;place-items:center;background:#fff}
+.acs-c.on{background:var(--pri-soft);border-color:var(--pri);color:var(--pri-dark)}
+.acs-c.on .bx{background:var(--pri);border-color:var(--pri);color:#fff}
+.acs-c.in{opacity:.6}
+.acs-c:disabled{cursor:wait;opacity:.6}
+.acs-ops{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.acs-grp{display:flex;flex-direction:column;gap:10px}
+.acs-m{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px dashed var(--border)}
+.acs-m:last-child{border-bottom:none;padding-bottom:0}
+.acs-mn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:#f6f9f9;color:var(--pri-dark);border-radius:10px;padding:5px 10px 5px 8px;font-size:12.5px;font-weight:700;min-width:150px}
+.acs-mn i{font-style:normal;margin-left:auto;font-size:11px;color:var(--muted);font-weight:600}
+.acs-mn .bx{width:16px;height:16px;border-radius:5px;border:1.5px solid #b7c6c5;display:grid;place-items:center;background:#fff}
+.acs-mn.on,.acs-mn.pa,.acs-mn:hover{border-color:var(--pri)}
+.acs-mn.on .bx,.acs-mn.pa .bx{background:var(--pri);border-color:var(--pri);color:#fff}
+.acs-res{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.acs-tot{font-size:11.5px;color:var(--muted);font-weight:600}
+.acs-ab{color:var(--pri-dark)}
+.acs-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.acs-hd .usr small{display:block}
+.acs-tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.acs-tb .input{flex:1 1 220px}
+@media (max-width:680px){ .acs-mn{min-width:0;width:100%} table.rsp .acs-res{justify-content:flex-end} }
+.imp-by{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted)}
+</style>
+<script>
+/* ---------- estado ---------- */
+let IMP = {};                         // programação -> id do usuário que importou/criou
+let EXM = new Map();                  // executor -> Set(oficina_id)
+let acsQ = '';
+const meuPerfil = () => EU?.perfil || 'usuario';
+const minaIdDeOf = ofId => { const o = OFI.find(x => x.id === ofId); return o ? (o.minaId || MINAS_DB.find(m => m.nome === o.mina)?.id || null) : null; };
+const executorTemOf = ofId => !!ofId && !!EXM.get(EU?.id)?.has(ofId);
+/* pode executar ações (iniciar, executar, paralisar, atribuir...) na oficina */
+function podeAgirOf(ofId){
+  const p = meuPerfil();
+  if(p === 'adm' || p === 'programador') return true;
+  if(p === 'executor') return executorTemOf(ofId);
+  return false;
+}
+/* ações na programação: depende da oficina onde está alocada */
+function podeAgirLote(id){
+  const p = meuPerfil();
+  if(p === 'adm' || p === 'programador') return true;
+  if(p === 'executor') return !!ALOC[id] && podeAgirOf(ALOC[id].of);
+  return false;
+}
+/* exclusão de programação: ADM tudo; Programador só o que importou */
+function podeExcluirLote(id){
+  const p = meuPerfil();
+  if(p === 'adm') return true;
+  return p === 'programador' && !!EU?.id && IMP[id] === EU.id;
+}
+const nomeUsr = id => { const u = USERS.find(x => x.id === id); return u ? (u.nome || u.email) : ''; };
+const motivoRO = id => {
+  const p = meuPerfil();
+  if(p === 'executor'){
+    if(!ALOC[id]) return 'Programação não alocada em BOX/pátio: modo somente visualização.';
+    const o = OFI.find(x => x.id === ALOC[id].of);
+    return `Você não tem permissão na oficina <b>${esc(o ? `${o.mina} · ${o.nome}` : '—')}</b>: modo somente visualização.`;
+  }
+  return `Seu perfil (<b>${esc(PERFIS[p]?.t || 'Usuário')}</b>) permite somente visualização.`;
+};
+
+/* ---------- carga do banco ---------- */
+async function exmCarregar(){
+  if(!sb) return;
+  const { data, error } = await sb.from('executor_oficinas').select('usuario_id,oficina_id');
+  if(error){ console.error('executor_oficinas:', error); return; }
+  EXM = new Map();
+  (data || []).forEach(r => { if(!EXM.has(r.usuario_id)) EXM.set(r.usuario_id, new Set()); EXM.get(r.usuario_id).add(r.oficina_id); });
+  if(!$('modal').classList.contains('show')) atualizarTela();
+}
+function exmRealtime(){
+  sb.channel('intime-exm').on('postgres_changes', { event:'*', schema:'public', table:'executor_oficinas' }, () => {
+    clearTimeout(exmRealtime._t); exmRealtime._t = setTimeout(exmCarregar, 250);
+  }).subscribe();
+}
+
+/* ---------- tela Cadastros › Acessos (executor x oficina) ---------- */
+function renderAcs(){
+  const el = $('acsBody');
+  if(!ehADM()){ el.innerHTML = `<div class="card cfg-lock"><div class="empty"><div class="eic">${ic('lock')}</div><b>Acesso restrito</b>Somente o perfil ADM gerencia os acessos.</div></div>`; icons(); return; }
+  const q = norm(acsQ);
+  const EX = USERS.filter(u => u.perfil === 'executor').sort((a,b) => cmpTxt(a.nome || a.email, b.nome || b.email));
+  const L = EX.filter(u => !q || norm(`${u.nome} ${u.email}`).includes(q));
+  const semAcesso = EX.filter(u => !OFI.some(o => EXM.get(u.id)?.has(o.id))).length;
+  el.innerHTML = `<div class="kpis">
+      <div class="kpi"><div class="ki">${ic('wrench')}</div><div><span>Executores</span><strong>${EX.length}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('shield-check')}</div><div><span>Com acesso</span><strong>${EX.length - semAcesso}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('shield-off')}</div><div><span>Sem acesso</span><strong>${semAcesso}</strong></div></div>
+      <div class="kpi"><div class="ki">${ic('factory')}</div><div><span>Oficinas</span><strong>${OFI.length}</strong></div></div>
+    </div>
+    <div class="cfg-tabs"><div class="right"><div class="input">${ic('search')}<input id="acsQ" placeholder="Buscar executor..." value="${esc(acsQ)}"></div></div></div>
+    <div class="panel"><div class="tbl-wrap"><table class="rsp"><thead><tr><th>Executor</th><th>E-mail</th><th>Oficinas liberadas</th><th class="c">Acesso</th></tr></thead><tbody>
+    ${!EX.length ? `<tr><td colspan="4"><div class="empty"><div class="eic">${ic('wrench')}</div><b>Nenhum executor</b>Defina o perfil <b>Executor</b> em <b>Configurações</b>.<button class="btn sm solid" onclick="trocarTela('cfg')">${ic('settings','sm')}Ir para Configurações</button></div></td></tr>`
+      : !L.length ? `<tr><td colspan="4"><div class="empty"><div class="eic">${ic('search-x')}</div>Nenhum executor encontrado.</div></td></tr>`
+      : L.map(u => { const S = EXM.get(u.id) || new Set(), lib = OFI.filter(o => S.has(o.id));
+        const porMina = [...groupBy(lib, o => o.mina)].sort((a,b) => ordMina(a[0]) - ordMina(b[0]));
+        return `<tr>
+          <td data-l="Executor"><div class="usr"><span class="av">${esc(iniciais(u.nome || u.email))}</span><div style="min-width:0"><b>${esc(u.nome || '—')}</b></div></div></td>
+          <td data-l="E-mail">${esc(u.email || '')}</td>
+          <td data-l="Oficinas">${lib.length ? `<div class="acs-res">${porMina.map(([m, os]) => `<span class="mina" title="${esc(os.map(o => o.nome).join(', '))}">${ic('mountain','sm')}${esc(m)} · ${os.length}/${OFI.filter(o => o.mina === m).length}</span>`).join('')}<span class="acs-tot">${lib.length} de ${OFI.length}</span></div>` : `<span class="pill gr">${ic('shield-off','sm')}Sem acesso</span>`}</td>
+          <td data-l="Acesso" class="c"><button class="btn icon sm acs-ab" data-ab="${u.id}" title="Gerenciar oficinas de ${esc(u.nome || u.email)}">${ic('key-round','sm')}</button></td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+  $('acsQ').oninput = e => { acsQ = e.target.value; const p = e.target.selectionStart; renderAcs(); $('acsQ').focus(); $('acsQ').setSelectionRange(p,p); };
+  el.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => acsModal(b.dataset.ab));
+  icons();
+}
+/* modal: seleção das oficinas do executor */
+function acsModal(uid){
+  const u = USERS.find(x => x.id === uid); if(!u) return;
+  const sel = new Set([...(EXM.get(uid) || [])].filter(id => OFI.some(o => o.id === id)));
+  const ordOf = [...OFI].sort((a,b) => ordMina(a.mina) - ordMina(b.mina) || cmpTxt(a.nome,b.nome));
+  const grupos = [...groupBy(ordOf, o => o.mina)];
+  let q = '';
+  abrirModal(`Acesso às oficinas · ${u.nome || u.email}`, 'key-round', `
+    <div class="acs-hd"><div class="usr"><span class="av">${esc(iniciais(u.nome || u.email))}</span><div style="min-width:0"><b>${esc(u.nome || '—')}</b><small>${esc(u.email || '')}</small></div></div>${pfPill('executor')}</div>
+    <div class="ro-ban" style="margin-bottom:12px;background:var(--pri-soft);border-color:var(--pri-soft2);color:var(--pri-dark)">${ic('info','sm')}<span>Nas oficinas marcadas o executor pode <b>agir</b> (iniciar, executar, paralisar, cancelar, finalizar, atribuir e adicionar atividades). Nas demais, <b>apenas visualiza</b>.</span></div>
+    ${OFI.length ? `<div class="acs-tb"><div class="input">${ic('search')}<input id="acsMQ" placeholder="Buscar mina ou oficina..."></div>
+      <button type="button" class="btn sm" id="acsMAll">${ic('check-check','sm')}Todas</button><button type="button" class="btn sm" id="acsMNone">${ic('x','sm')}Nenhuma</button></div>
+      <div class="acs-grp" id="acsMG"></div>`
+      : `<div class="empty"><div class="eic">${ic('factory')}</div><b>Nenhuma oficina cadastrada</b><button class="btn sm solid" onclick="fecharModal();trocarTela('ofi')">${ic('factory','sm')}Ir para Oficinas</button></div>`}`,
+    `<span class="info" id="acsMI"></span><button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn solid" id="acsMS">${ic('save')}Salvar</button>`, 'md');
+  const desenhar = () => {
+    if(!$('acsMG')) return;
+    const t = norm(q);
+    $('acsMG').innerHTML = grupos.map(([mina, ofs]) => {
+      const vis = ofs.filter(o => !t || norm(`${o.mina} ${o.nome}`).includes(t)); if(!vis.length) return '';
+      const n = ofs.filter(o => sel.has(o.id)).length, est = !n ? '' : n === ofs.length ? 'on' : 'pa';
+      return `<div class="acs-m"><button type="button" class="acs-mn ${est}" data-mn="${esc(mina)}" title="Marcar/desmarcar todas de ${esc(mina)}"><span class="bx">${est === 'on' ? ic('check','sm') : est === 'pa' ? ic('minus','sm') : ''}</span>${ic('mountain','sm')}${esc(mina)}<i>${n}/${ofs.length}</i></button>
+        <div class="acs-chips">${vis.map(o => `<button type="button" class="acs-c ${sel.has(o.id)?'on':''}" data-of="${o.id}"><span class="bx">${sel.has(o.id) ? ic('check','sm') : ''}</span>${esc(o.nome)}</button>`).join('')}</div></div>`;
+    }).join('') || `<div class="ms-empty">Nenhuma oficina encontrada</div>`;
+    $('acsMI').innerHTML = `${ic('info','sm')}${sel.size} de ${OFI.length} oficina(s) selecionada(s)`;
+    $('acsMG').querySelectorAll('[data-of]').forEach(b => b.onclick = () => { sel.has(b.dataset.of) ? sel.delete(b.dataset.of) : sel.add(b.dataset.of); desenhar(); });
+    $('acsMG').querySelectorAll('[data-mn]').forEach(b => b.onclick = () => {
+      const ids = OFI.filter(o => o.mina === b.dataset.mn).map(o => o.id), todas = ids.every(id => sel.has(id));
+      ids.forEach(id => todas ? sel.delete(id) : sel.add(id)); desenhar();
+    });
+    icons();
+  };
+  if($('acsMQ')){
+    $('acsMQ').oninput = e => { q = e.target.value; desenhar(); };
+    $('acsMAll').onclick = () => { OFI.forEach(o => sel.add(o.id)); desenhar(); };
+    $('acsMNone').onclick = () => { sel.clear(); desenhar(); };
+    setTimeout(() => $('acsMQ').focus(), 50);
+  } else $('acsMI').textContent = '';
+  desenhar();
+  $('acsMS').onclick = async () => {
+    const ant = EXM.get(uid) || new Set();
+    const add = [...sel].filter(id => !ant.has(id)), rem = [...ant].filter(id => !sel.has(id));
+    if(!add.length && !rem.length){ fecharModal(); return; }
+    const b = $('acsMS'); b.disabled = true;
+    const ok1 = await acsDefinir(uid, add, true, true), ok2 = ok1 && await acsDefinir(uid, rem, false, true);
+    b.disabled = false;
+    if(ok1 && ok2){ fecharModal(); renderAcs(); toast(`${nomeUsr(uid)}: ${sel.size} oficina(s) liberada(s)`,'ok'); }
+  };
+}
+async function acsDefinir(uid, ofs, dar, silencioso){
+  if(!sb) return false;
+  const S = EXM.get(uid) || new Set(), ant = new Set(S);
+  ofs = ofs.filter(o => dar ? !S.has(o) : S.has(o)); if(!ofs.length) return true;
+  ofs.forEach(o => dar ? S.add(o) : S.delete(o)); EXM.set(uid, S);
+  const r = dar ? await sb.from('executor_oficinas').upsert(ofs.map(o => ({ usuario_id:uid, oficina_id:o })), { onConflict:'usuario_id,oficina_id' })
+                : await sb.from('executor_oficinas').delete().eq('usuario_id', uid).in('oficina_id', ofs);
+  if(r.error){ EXM.set(uid, ant); toast('Não foi possível salvar o acesso: ' + r.error.message,'er'); return false; }
+  if(!silencioso){ renderAcs(); toast(`${nomeUsr(uid)}: ${dar ? 'acesso concedido' : 'acesso removido'}`,'ok'); }
+  return true;
+}
+
+/* ---------- aplicação das regras nas telas ---------- */
+(function(){
+  // Programação: botão Excluir só para quem pode
+  const _rl = renderLotes;
+  renderLotes = function(LF){
+    _rl(LF);
+    $('vLotes').querySelectorAll('[data-del]').forEach(b => {
+      if(podeExcluirLote(b.dataset.del)) return;
+      const who = nomeUsr(IMP[b.dataset.del]);
+      b.closest('.lc-ops').innerHTML = `<span class="imp-by">${ic('lock','sm')}${who ? `Importada por ${esc(who)}` : 'Exclusão restrita'}</span>`;
+    });
+    icons();
+  };
+  // IN TIME: oficina sem permissão = somente visualização
+  const _ls = ligarSlots;
+  ligarSlots = function(o){
+    _ls(o);
+    $('roBanIt')?.remove();
+    if(podeAgirOf(o.id)) return;
+    const box = $('slots');
+    box.querySelectorAll('[data-at],[data-ini],[data-rm]').forEach(b => b.remove());
+    box.querySelectorAll('.s-f').forEach(f => f.remove());
+    box.querySelectorAll('.al').forEach(a => { a.draggable = false; a.classList.add('ro'); a.ondragstart = null; a.title = 'Somente visualização'; });
+    box.querySelectorAll('.slot').forEach(s => { s.ondragover = s.ondrop = null; });
+    const ban = document.createElement('div'); ban.id = 'roBanIt'; ban.className = 'ro-ban';
+    ban.innerHTML = `${ic('eye','sm')}<span>${meuPerfil() === 'executor' ? `Você não tem permissão na oficina <b>${esc(o.mina)} · ${esc(o.nome)}</b>` : `Seu perfil (<b>${esc(PERFIS[meuPerfil()]?.t)}</b>) permite`} ${meuPerfil() === 'executor' ? ': ' : ''}somente visualização.</span>`;
+    box.before(ban); icons();
+  };
+  // Sequência de atividades: sem permissão = somente visualização
+  const _as = abrirSequencia;
+  abrirSequencia = function(id, manter){
+    if(!podeAgirLote(id)){ sqFin = false; sqEdit = null; }
+    _as(id, manter);
+    if(podeAgirLote(id) || !$('modal').classList.contains('show')) return;
+    const mb = $('mBody');
+    mb.querySelectorAll('.sact,.mform,.lock').forEach(x => x.remove());
+    ['psIni','psFin','psReab','sqCor','sqAll'].forEach(k => $(k)?.remove());
+    const sp = $('sqSeg'); if(sp){ sp.querySelectorAll('button').forEach(b => b.disabled = true); sp.style.pointerEvents = 'none'; sp.style.opacity = .7; }
+    const ban = document.createElement('div'); ban.className = 'ro-ban sq';
+    ban.innerHTML = `${ic('eye','sm')}<span>${motivoRO(id)}</span>`;
+    mb.prepend(ban); icons();
+  };
+  // ações protegidas também na função (atalhos externos)
+  const _ip = iniciarProg;
+  iniciarProg = function(id){ if(!podeAgirLote(id)){ toast('Sem permissão para iniciar nesta oficina','er'); return; } _ip(id); };
+  const _fa = formAtribuir;
+  formAtribuir = function(o, loc){ if(!podeAgirOf(o.id)){ toast('Sem permissão de ação nesta oficina','er'); return; } _fa(o, loc); };
+  // importação: quem confirmou passa a ser o dono da programação
+  const _ci = confirmarImport;
+  confirmarImport = function(){
+    const ids = pend ? pend.lotes.filter(l => pend.sel[l.id]).map(l => l.id) : [];
+    _ci(); if(EU?.id) ids.forEach(id => IMP[id] = EU.id); agendarSync(); if(tela === 'prog') render();
+  };
+})();
+
+/* ================= EXPORTAR INFORMATIVO EM HTML (retrato estático, sem o app) ================= */
+let htmlGerando = false;
+async function exportarInfHtml(){
+  if(htmlGerando) return;
+  htmlGerando = true;
+  const btn = $('bInfHtml'), btnH = btn?.innerHTML;
+  if(btn){ btn.disabled = true; btn.innerHTML = `${ic('loader-circle','spin')}Gerando…`; }
+  const telaAnt = tela, pagAnt = infPag;
+  const mIni = { tit:$('mTit').textContent, ic:$('mIc').innerHTML, body:$('mBody').innerHTML, foot:$('mFoot').innerHTML, show:$('modal').classList.contains('show') };
+  try{
+    if(tela !== 'inf') trocarTela('inf');
+    renderInf();
+    if(!infUlt) throw new Error('Informativo ainda não carregado');
+    const sem = infSemana(), geradoEm = fmtDH(new Date());
+    const quem = EU ? (USERS.find(u => u.id === EU.id)?.nome || '') : '';
+
+    /* ---- área de trabalho fora da tela (para converter ícones em SVG) ---- */
+    const wk = document.createElement('div');
+    wk.style.cssText = 'position:fixed;left:-30000px;top:0;width:1100px;visibility:hidden';
+    document.body.appendChild(wk);
+    const svgs = html => { wk.innerHTML = html; if(window.lucide) lucide.createIcons(); return wk; };
+
+    /* ---- conteúdo principal, contínuo ---- */
+    let corpo = '', buf = '';
+    infUlt.blocos.forEach(b => { if(b.art) buf += b.html; else { if(buf){ corpo += `<div class="nw-main tp">${buf}</div>`; buf = ''; } corpo += b.html; } });
+    if(buf) corpo += `<div class="nw-main tp">${buf}</div>`;
+    svgs(`${infUlt.top || ''}${infUlt.hero ? `<div class="pg-hero">${infUlt.hero}</div>` : ''}${corpo}`);
+    wk.querySelectorAll('.wkp').forEach(w => {
+      const c = document.createElement('div'); c.className = 'snp-wk';
+      c.innerHTML = `${ic('calendar-days','sm')}<span><small>Semana da edição</small><b>${esc(sem.label)}</b><i>${fmtD(sem.seg)} a ${fmtD(sem.dom)}</i></span>`;
+      w.replaceWith(c);
+    });
+    wk.querySelectorAll('.pg-nav,#pgNav,[data-noprint]').forEach(x => x.remove());
+    if(window.lucide) lucide.createIcons();
+    const principal = wk.innerHTML;
+
+    /* ---- captura das janelas de detalhe (modais) ---- */
+    const M = new Map(), fila = [];
+    const coletar = root => root.querySelectorAll('[data-k],[data-sq],[data-of]').forEach(b => {
+      const key = b.dataset.k ? 'k:' + b.dataset.k : b.dataset.sq ? 'sq:' + b.dataset.sq : 'of:' + b.dataset.of;
+      if(!M.has(key) && !fila.includes(key)) fila.push(key);
+    });
+    coletar(wk);
+    const capturar = () => {
+      const w2 = svgs($('mBody').innerHTML);
+      w2.querySelectorAll('.sact,.mform,.lock,.ro-ban,#psIni,#psFin,#psReab,#sqCor,#sqAll,.pstat .r,.sp-x,.sp-pop').forEach(x => x.remove());
+      w2.querySelectorAll('.sp-btn').forEach(b => { b.disabled = true; b.querySelectorAll('.chev').forEach(c => c.remove()); });
+      const r = { tit:$('mTit').textContent, ic:$('mIc').innerHTML, tam:['lg','md','xl'].find(c => $('mBox').classList.contains(c)) || '', body:w2.innerHTML };
+      $('modal').classList.remove('show');
+      coletar(w2);
+      return r;
+    };
+    const ofModal = id => {
+      const o = OFI.find(x => x.id === id); if(!o) return null;
+      const ids = alocDe(o.id).filter(k => LMAP.get(k));
+      const locs = locaisDe(o).map(loc => {
+        const L = ids.filter(k => ALOC[k].loc === loc).map(k => LMAP.get(k)).sort((a,b) => a.ini - b.ini);
+        return `<div class="snp-loc ${L.length ? '' : 'free'}"><div class="snp-lh">${ic(loc === PATIO ? 'map-pinned' : 'warehouse','sm')}<b>${esc(loc)}</b><span class="pill ${L.length ? 'nex' : 'ok'}">${L.length ? 'Ocupado' : 'Livre'}</span></div>
+          ${L.map(l => { const ps = psDe(l.id), P = PSL[ps?.st || 'ni'], p = progresso(l);
+            return `<button class="nr" data-sq="${esc(l.id)}"><div class="nr-m"><div class="nr-t"><span class="tag">${esc(l.tag)}</span><span class="code">${esc(l.id)}</span>${l.cor ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}${temOMVE(l) ? omveBadge(l.itens.filter(r => r.OMVE).length) : ''}</div>
+              <small><span>${ic('clock','sm')}${fmtDH(l.ini)} → ${fmtDH(l.fim)}</span><span>${ic('list-checks','sm')}${l.itens.length} ativ.</span></small></div>
+              <div class="nr-s"><span class="pill ${P.c}">${ic(P.i,'sm')}${P.t}</span><span class="mini"><i style="width:${p.pct}%"></i></span><b>${p.pct}%</b></div>${ic('chevron-right','sm')}</button>`; }).join('')}</div>`;
+      }).join('');
+      const w2 = svgs(`<div class="snp-of"><span class="mina">${ic('mountain','sm')}${esc(o.mina)}</span><span>${ic('warehouse','sm')}${o.qtdBox} BOX</span>${o.patio ? `<span>${ic('map-pinned','sm')}Pátio</span>` : ''}<span>${ic('layers','sm')}${ids.length} programação(ões)</span></div><div class="nrl">${locs}</div>`);
+      coletar(w2);
+      return { tit:`${o.mina} · ${o.nome}`, ic:svgs(ic('factory')).innerHTML, tam:'md', body:w2.innerHTML };
+    };
+    let guard = 0;
+    while(fila.length && guard++ < 1500){
+      const key = fila.shift(); if(M.has(key)) continue;
+      const [t, ...rest] = key.split(':'), v = rest.join(':');
+      let r = null;
+      try{
+        if(t === 'of') r = ofModal(v);
+        else { if(t === 'k') infDetalhe(v); else { sqEdit = null; sqFin = false; abrirSequencia(v); } r = capturar(); }
+      }catch(e){ console.warn('captura', key, e); }
+      if(r) M.set(key, r);
+    }
+    const xSvg = svgs(ic('x')).innerHTML;
+    wk.remove();
+
+    /* ---- documento final ---- */
+    const css = [...document.querySelectorAll('style')].map(x => x.textContent).join('\n');
+    const logo = document.querySelector('.sb-top .logo img')?.src || '';
+    const tpls = [...M].map(([k, r]) => `<template data-m="${esc(k)}" data-t="${esc(r.tit)}" data-z="${r.tam}"><div class="ic">${r.ic}</div>${r.body}</template>`).join('\n');
+    const doc = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informativo IN TIME · Semana ${esc(sem.label)}</title>
+${logo ? `<link rel="icon" href="${logo}">` : ''}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>${css}
+html,body{height:auto!important;overflow:auto!important}
+body{background:var(--bg);display:block!important}
+.snp{max-width:1180px;margin:0 auto;padding:18px 18px 30px;display:flex;flex-direction:column;gap:16px}
+.snp-h{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--border);border-top:4px solid var(--pri);border-radius:16px;padding:12px 16px;box-shadow:var(--sh)}
+.snp-h img{width:42px;height:42px;object-fit:contain}
+.snp-h .t{flex:1;min-width:0}.snp-h .t b{display:block;font-size:18px;color:var(--pri-dark)}.snp-h .t small{color:var(--muted);font-size:12px}
+.snp-h .r{text-align:right;font-size:11.5px;color:var(--muted);line-height:1.5}
+.snp-ro{display:inline-flex;align-items:center;gap:5px;background:var(--pri-soft);color:var(--pri-dark);border:1px solid var(--pri-soft2);border-radius:20px;padding:3px 10px;font-weight:700;font-size:11px}
+.snp .nw-main.tp{display:block!important}
+.snp-wk{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 12px}
+.snp-wk span{display:flex;flex-direction:column;line-height:1.25}.snp-wk small{font-size:10.5px;color:var(--muted)}.snp-wk b{color:var(--pri-dark)}.snp-wk i{font-style:normal;font-size:11px;color:var(--muted)}
+.snp-f{text-align:center;font-size:11px;color:var(--muted);padding-top:6px}
+.snp-of{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:12.5px;color:var(--muted);margin-bottom:12px}
+.snp-of span{display:inline-flex;align-items:center;gap:5px}
+.snp-loc{border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;background:#fbfdfd}
+.snp-loc.free{opacity:.75}
+.snp-lh{display:flex;align-items:center;gap:6px}.snp-lh .pill{margin-left:auto}
+.modal .sp-btn{cursor:default}
+@media (max-width:680px){ .snp{padding:10px} .snp-h{flex-wrap:wrap} .snp-h .r{text-align:left;width:100%} }
+@media print{ .snp-h{box-shadow:none} .modal-bg{display:none!important} }
+</style></head>
+<body>
+<div class="snp">
+  <div class="snp-h">${logo ? `<img src="${logo}" alt="">` : ''}<div class="t"><b>Informativo IN TIME</b><small>Retrato da semana ${esc(sem.label)} · dados de ${esc(geradoEm)}</small></div>
+    <div class="r"><span class="snp-ro">Somente leitura</span><br>Gerado em ${esc(geradoEm)}${quem ? ` por ${esc(quem)}` : ''}</div></div>
+  <div class="news">${principal}</div>
+  <div class="snp-f">IN TIME · Planejamento e Controle de Manutenção · Retrato gerado em ${esc(geradoEm)}. Os dados não são atualizados.</div>
+</div>
+<div class="modal-bg" id="modal"><div class="modal" id="mBox">
+  <div class="m-h"><div class="mi" id="mIc"></div><h3 id="mTit"></h3><button class="x" id="mX" title="Fechar">${xSvg}</button></div>
+  <div class="body" id="mBody"></div>
+  <div class="foot" id="mFoot"><button class="btn solid" id="mOk">Fechar</button></div>
+</div></div>
+${tpls}
+<script>
+(function(){
+  var pilha=[],m=document.getElementById('modal'),bx=document.getElementById('mBox'),bd=document.getElementById('mBody');
+  function norm(s){return String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLowerCase();}
+  function abrir(k,push){
+    var t=document.querySelector('template[data-m="'+(window.CSS&&CSS.escape?CSS.escape(k):k)+'"]'); if(!t) return;
+    if(push!==false&&m.classList.contains('show')&&pilha.length) pilha.push(k); else if(push!==false) pilha=[k];
+    var f=t.content.cloneNode(true),ic=f.querySelector('.ic');
+    document.getElementById('mIc').innerHTML=ic?ic.innerHTML:''; if(ic) ic.remove();
+    document.getElementById('mTit').textContent=t.dataset.t;
+    bd.innerHTML=''; bd.appendChild(f); bd.scrollTop=0;
+    bx.classList.remove('lg','md','xl'); if(t.dataset.z) bx.classList.add(t.dataset.z);
+    document.getElementById('mOk').textContent=pilha.length>1?'Voltar':'Fechar';
+    var q=bd.querySelector('#nrQ'); if(q) q.oninput=function(){var v=norm(q.value);bd.querySelectorAll('#nrL > [data-f]').forEach(function(r){r.hidden=v&&r.dataset.f.indexOf(v)<0;});};
+    m.classList.add('show');
+  }
+  function fechar(){ pilha.pop(); if(pilha.length) abrir(pilha[pilha.length-1],false); else m.classList.remove('show'); }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-k],[data-sq],[data-of]');
+    if(b){ e.preventDefault(); e.stopPropagation(); abrir(b.dataset.k?'k:'+b.dataset.k:b.dataset.sq?'sq:'+b.dataset.sq:'of:'+b.dataset.of); return; }
+    if(e.target.closest('#mX')){ pilha=[]; m.classList.remove('show'); return; }
+    if(e.target.closest('#mOk')){ fechar(); return; }
+    if(e.target===m){ pilha=[]; m.classList.remove('show'); }
+  },true);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&m.classList.contains('show')) fechar(); });
+})();
+<\/script>
+</body></html>`;
+    const blob = new Blob([doc], { type:'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Informativo_IN_TIME_${sem.label.replace(/[^\w-]+/g,'_')}_${carimbo()}.html`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`Informativo exportado · ${M.size} detalhamento(s) incluído(s)`,'ok');
+  }catch(e){
+    console.error(e); toast('Não foi possível exportar: ' + (e.message || e),'er');
+  }finally{
+    $('modal').classList.remove('show');
+    $('mTit').textContent = mIni.tit; $('mIc').innerHTML = mIni.ic; $('mBody').innerHTML = mIni.body; $('mFoot').innerHTML = mIni.foot;
+    sqEdit = null; sqFin = false;
+    if(telaAnt !== 'inf') trocarTela(telaAnt); else { infPag = pagAnt; renderInf(); }
+    htmlGerando = false;
+    if(btn){ btn.disabled = false; btn.innerHTML = btnH; icons(); }
+  }
+}
+
+/* inicia a conexão só depois que todas as regras de permissão estão carregadas */
+sbIniciar();
+</script>
 </body>
 </html>
