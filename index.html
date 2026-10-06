@@ -369,6 +369,7 @@ td.c,th.c{text-align:center}
 .modal .foot .info{margin-right:auto;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
 .cfg{display:flex;gap:18px;flex-wrap:wrap;align-items:center;background:var(--pri-soft);border:1px solid var(--pri-soft2);padding:12px 14px;border-radius:12px;margin-bottom:14px}
 .fld{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;color:var(--pri-dark)}
+.fld .fl-t{display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap}.fld .fl-t em{color:var(--err);font-style:normal;line-height:1}
 .num{display:flex;align-items:center;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden;width:max-content}
 .num input{width:70px;padding:7px 8px;border:none;font-size:14px;text-align:center;outline:none}
 .num button{border:none;background:#f3f7f7;width:34px;height:36px;display:grid;place-items:center;color:var(--pri-dark)}
@@ -1026,6 +1027,7 @@ header .sb-st ~ .actions{margin-left:10px}
   <div class="actions" id="hActProg">
     <button class="hbtn solid" onclick="baixarModelo()"><i data-lucide="file-down"></i>Modelo<span class="lbl-long">&nbsp;Excel</span></button>
     <button class="hbtn" onclick="escolherModelo()"><i data-lucide="upload"></i>Importar</button>
+    <button class="hbtn" onclick="abrirLotesImp()" title="Excluir um lote de importação"><i data-lucide="package-x"></i>Lotes</button>
   </div>
   <div class="actions" id="hActOfi" hidden>
     <button class="hbtn solid" onclick="formOficina()"><i data-lucide="plus"></i>Nova oficina</button>
@@ -1359,6 +1361,13 @@ function semanaDe(d){
   return { ano:dom.getFullYear(), num:n, cod:`${dom.getFullYear()}${pad(n)}`, label:`${dom.getFullYear()}-${pad(n)}`, seg, dom };
 }
 const fmtD = d => `${pad(d.getDate())}/${pad(d.getMonth()+1)}`;
+const _semC = new Map();
+function semDeLabel(lab){
+  if(!lab) return null; if(_semC.has(lab)) return _semC.get(lab);
+  const d = new Date(+String(lab).split('-')[0] - 1, 11, 20);
+  for(let i = 0; i < 400; i++){ const s = semanaDe(d); if(s.label === lab){ _semC.set(lab, s); return s; } d.setDate(d.getDate() + 1); }
+  return null;
+}
 
 function parseData(v){
   if(v === null || v === undefined || v === '') return null;
@@ -1509,7 +1518,7 @@ function processar(linhas, nomeArq, mk='padrao'){
     (reg._erros.length ? invalidos : validos).push(reg);
   }
   if(!validos.length && !invalidos.length){ toast('Nenhuma linha de dados encontrada','er'); return; }
-  pend = { nome:nomeArq, modelo:M.nome, validos, invalidos, tol:0, sel:{}, acao:{} };
+  pend = { nome:nomeArq, modelo:M.nome, validos, invalidos, tol:24, sel:{}, acao:{} };
   abrirConfirmacao();
 }
 
@@ -1527,7 +1536,8 @@ function analisar(lotes){
     if(zero) l.avisos.push(`${zero} atividade(s) com duração zero`);
     l.ini = new Date(Math.min(...l.itens.map(r => +r.Inicio)));
     l.fim = new Date(Math.max(...l.itens.map(r => +r.Fim)));
-    l.sem = semanaDe(l.ini);
+    const lab = l.itens.find(r => r.Semana)?.Semana;
+    l.sem = (lab && semDeLabel(lab)) || semanaDe(l.ini);
   });
   return lotes.sort((a,b) => a.sem.cod.localeCompare(b.sem.cod) || cmpTxt(a.tag,b.tag) || a.ini - b.ini);
 }
@@ -1549,17 +1559,24 @@ function montarLotesImport(){
     arr.sort((a,b) => a.Inicio - b.Inicio || a.Fim - b.Fim);
     let cur = null, curFim = null;
     arr.forEach(r => {
-      if(!cur || (r.Inicio - curFim) > pend.tol * 36e5){ cur = {tag, itens:[]}; lotes.push(cur); curFim = r.Fim; }
+      const gap = cur ? r.Inicio - curFim : 0;
+      if(!cur || gap > pend.tol * 36e5){ cur = {tag, itens:[], sep:cur ? gap : 0}; lotes.push(cur); curFim = r.Fim; }
       cur.itens.push(r); if(r.Fim > curFim) curFim = r.Fim;
     });
   });
   analisar(lotes);
+  if(!pend.semSel){
+    const ini = Math.min(...pend.validos.map(r => +r.Inicio));
+    pend.semSel = isFinite(ini) ? semanaDe(new Date(ini)).label : semanaDe(new Date()).label;
+  }
+  const semL = semDeLabel(pend.semSel);
+  lotes.forEach(l => { l.sem = semL; l.itens.forEach(r => r.Semana = semL.label); });
   lotes.forEach(l => l.key = chaveTS(l));
   const exPorChave = groupBy(LOTES.filter(l => !l.cor), chaveTS);
   const coinc = [...new Set(lotes.map(l => l.key))].filter(k => exPorChave.has(k));
   coinc.forEach(k => { if(!pend.acao[k]) pend.acao[k] = 'substituir'; });
   pend.coinc = coinc.map(k => ({ k, tag:k.split('|')[0], sem:exPorChave.get(k)[0].sem, ex:exPorChave.get(k), nv:lotes.filter(l => l.key === k) }));
-  const mantidos = LOTES.filter(l => l.cor || !(coinc.includes(chaveTS(l)) && pend.acao[chaveTS(l)] === 'substituir'));
+  const mantidos = LOTES.filter(l => l.cor || psDe(l.id) || !(coinc.includes(chaveTS(l)) && pend.acao[chaveTS(l)] === 'substituir'));
   const maxN = {};
   mantidos.forEach(l => { const k = chaveTS(l); const n = +String(l.id).split('-').pop() || 0; maxN[k] = Math.max(maxN[k]||0, n); });
   [...lotes].sort((a,b) => a.ini - b.ini).forEach(l => {
@@ -1597,7 +1614,7 @@ function cardLote(l, modo){
     <div class="lc-h">
       ${modo==='conf' ? `<input type="checkbox" class="ck ckLote" data-id="${esc(l.id)}" ${sel?'checked':''}>` : ''}
       <span class="code"><i style="background:${c}"></i>${esc(l.id)}</span>${temOMVE(l) ? omveBadge(l.itens.filter(r=>r.OMVE).length) : ''}${l.cor ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}
-      <div class="right">${acao}${wkChip(l.sem)}${l.avisos.length ? `<span class="pill wr">${ic('triangle-alert','sm')}${l.avisos.length}</span>` : `<span class="pill ok">${ic('check','sm')}OK</span>`}</div>
+      <div class="right">${acao}${modo==='conf' && l.sep ? `<span class="pill gr" title="Separada da programação anterior da mesma TAG (intervalo maior que a tolerância)">${ic('scissors','sm')}Intervalo de ${fmtDur(l.sep)}</span>` : ''}${wkChip(l.sem)}${l.avisos.length ? `<span class="pill wr">${ic('triangle-alert','sm')}${l.avisos.length}</span>` : `<span class="pill ok">${ic('check','sm')}OK</span>`}</div>
     </div>
     <div class="lc-m">
       <div><small>${ic('list-checks','sm')}Atividades</small><b>${l.itens.length}</b></div>
@@ -1624,7 +1641,10 @@ function abrirConfirmacao(){
       <div class="fld">Tolerância entre atividades (h)
         <div class="num"><button id="tMenos">${ic('minus','sm')}</button><input id="tol" type="number" min="0" step="0.5" value="${pend.tol}"><button id="tMais">${ic('plus','sm')}</button></div>
       </div>
-      <div class="hint">${ic('info','sm')}<span>Atividades da mesma TAG ficam na mesma sequência quando a próxima começa até essa tolerância após o término da anterior. A <b>semana</b> é dada pelo início da sequência (seg–dom, numerada pelo domingo). Código: <b>TAG-AAAASS-n</b>.</span></div>
+      <div class="fld"><span class="fl-t">Semana do lote de programações<em>*</em></span>
+        <div class="wkdd">${ic('calendar-days')}<select id="impSem">${semOpcoesImp().map(w => `<option value="${w.label}" ${w.label === pend.semSel ? 'selected' : ''}>Semana ${w.label} · ${fmtD(w.seg)} a ${fmtD(w.dom)}${w.label === semanaDe(new Date()).label ? ' (atual)' : ''}</option>`).join('')}</select></div>
+      </div>
+      <div class="hint">${ic('info','sm')}<span>Todas as programações deste lote ficam na <b>semana selecionada</b>, independentemente das datas das atividades. Atividades da mesma TAG ficam na mesma programação enquanto o intervalo entre elas for de até a tolerância (padrão <b>24 h</b>); acima disso, inicia uma nova programação (seg–dom, numerada pelo domingo). Código: <b>TAG-AAAASS-n</b>.</span></div>
     </div>
     <div class="chips">
       <span class="chip">${ic('file-spreadsheet','sm')}<b>${esc(pend.nome)}</b></span>
@@ -1662,6 +1682,7 @@ function abrirConfirmacao(){
   const setAcao = (ks, a) => { const y = body.scrollTop; ks.forEach(k => pend.acao[k] = a); pend.sel = {}; abrirConfirmacao(); $('mBody').scrollTop = y; };
   body.querySelectorAll('.ci [data-a]').forEach(b => b.onclick = () => setAcao([b.dataset.k], b.dataset.a));
   body.querySelectorAll('[data-all]').forEach(b => b.onclick = () => setAcao(pend.coinc.map(c => c.k), b.dataset.all));
+  $('impSem').onchange = e => { pend.semSel = e.target.value; pend.sel = {}; pend.acao = {}; abrirConfirmacao(); };
   const setTol = v => { pend.tol = Math.max(0, Math.round(v*2)/2); pend.sel = {}; abrirConfirmacao(); };
   $('tol').onchange = e => setTol(parseFloat(String(e.target.value).replace(',','.')) || 0);
   $('tMenos').onclick = () => setTol(pend.tol - 0.5);
@@ -1673,6 +1694,16 @@ function abrirConfirmacao(){
   $('selSemAv').onclick  = () => { L.forEach(l => pend.sel[l.id] = !l.avisos.length); atualizarSel(); };
   $('bConf').onclick = confirmarImport;
   atualizarSel();
+}
+/* semanas oferecidas na importação: do início ao fim das atividades, com 2 semanas de folga e a semana atual */
+function semOpcoesImp(){
+  const ds = pend.validos.flatMap(r => [+r.Inicio, +r.Fim]).filter(isFinite);
+  const hoje = Date.now(), a = Math.min(hoje, ...ds) - 14 * 864e5, b = Math.max(hoje, ...ds) + 14 * 864e5;
+  const m = new Map(), d = new Date(a);
+  while(+d <= b){ const s = semanaDe(d); m.set(s.label, s); d.setDate(d.getDate() + 7); }
+  const s2 = semanaDe(new Date(b)); m.set(s2.label, s2);
+  if(pend.semSel && !m.has(pend.semSel)){ const s3 = semDeLabel(pend.semSel); if(s3) m.set(s3.label, s3); }
+  return [...m.values()].sort((x,y) => x.cod.localeCompare(y.cod));
 }
 function coincHtml(){
   if(!pend.coinc.length) return '';
@@ -1703,7 +1734,7 @@ function confirmarImport(){
   const sel = pend.lotes.filter(l => pend.sel[l.id]);
   if(!sel.length) return;
   const keysSub = new Set(sel.filter(l => l.acao === 'substituir').map(l => l.key));
-  const idsRem = new Set(LOTES.filter(l => !l.cor && keysSub.has(chaveTS(l))).map(l => l.id));
+  const idsRem = new Set(LOTES.filter(l => !l.cor && !psDe(l.id) && keysSub.has(chaveTS(l))).map(l => l.id));
   const base = dados.filter(d => !idsRem.has(d.Lote));
   const novosIds = new Set(sel.map(l => l.id));
   idsRem.forEach(id => { if(!novosIds.has(id)) delete ALOC[id]; });
@@ -1894,9 +1925,9 @@ function renderLotes(LF){
   });
   el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     const l = LMAP.get(b.dataset.del);
-    abrirModal('Excluir sequência', 'trash-2', `<p>Excluir <b>${esc(l.id)}</b> com <b>${l.itens.length}</b> atividade(s)?</p>${ALOC[l.id] ? `<p style="margin-top:8px;color:var(--err)">A alocação em <b>${esc(locTxt(l.id))}</b> também será removida.</p>` : ''}`,
+    abrirModal('Excluir sequência', 'trash-2', `<p>Excluir <b>${esc(l.id)}</b> com <b>${l.itens.length}</b> atividade(s)?</p>${psDe(l.id) ? `<p style="margin-top:8px;color:var(--err)">Esta programação está <b>${psDe(l.id).st === 'fi' ? 'finalizada' : 'em execução'}</b>: todo o registro de execução (status e motivos) será perdido.</p>` : ''}${ALOC[l.id] ? `<p style="margin-top:8px;color:var(--err)">A alocação em <b>${esc(locTxt(l.id))}</b> também será removida.</p>` : ''}`,
       `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn red" id="bDel">${ic('trash-2')}Excluir</button>`);
-    $('bDel').onclick = () => { dados = dados.filter(d => d.Lote !== l.id); delete ALOC[l.id]; salvar(); alSalvar(); recalcular(); montarFiltros(); fecharModal(); render(); toast('Sequência excluída','ok'); };
+    $('bDel').onclick = () => { dados = dados.filter(d => d.Lote !== l.id); delete ALOC[l.id]; delete PS[l.id]; delete SEG[l.id]; Object.keys(SEG).forEach(k => { if(SEG[k] === l.id) delete SEG[k]; }); stSalvar(); salvar(); alSalvar(); recalcular(); montarFiltros(); fecharModal(); render(); toast('Sequência excluída','ok'); };
   });
 }
 function renderGantt(LF){
@@ -3434,7 +3465,8 @@ const SHAPE = {
   minas:        r => ({ id:r.id, nome:r.nome, ordem:+r.ordem, ativo:!!r.ativo }),
   oficinas:     r => ({ id:r.id, mina_id:r.mina_id, nome:r.nome, qtd_box:+r.qtd_box, patio:!!r.patio }),
   programacoes: r => ({ id:r.id, tag:r.tag, semana:r.semana, corretiva:!!r.corretiva, status:r.status || 'ni',
-                        iniciada_em:tsN(r.iniciada_em), finalizada_em:tsN(r.finalizada_em), reaberta_em:tsN(r.reaberta_em), seguir_com:r.seguir_com || null, importado_por:r.importado_por || null }),
+                        iniciada_em:tsN(r.iniciada_em), finalizada_em:tsN(r.finalizada_em), reaberta_em:tsN(r.reaberta_em), seguir_com:r.seguir_com || null, importado_por:r.importado_por || null,
+                        lote_import:r.lote_import || null, lote_import_em:tsN(r.lote_import_em), lote_arquivo:r.lote_arquivo || null }),
   atividades:   r => ({ id:r.id, programacao_id:r.programacao_id, tag:r.tag, ordem:r.ordem, atividade:r.atividade, inicio:tsN(r.inicio), fim:tsN(r.fim),
                         corretiva:!!r.corretiva, omve:!!r.omve, origem:r.origem || 'importacao', status:r.status || null, motivo:r.motivo || null, status_em:tsN(r.status_em) }),
   alocacoes:    r => ({ programacao_id:r.programacao_id, oficina_id:r.oficina_id, local:r.local })
@@ -3463,7 +3495,7 @@ function montarDeRaw(){
   MINAS_DB = [...sbRaw.minas.values()].map(m => ({ id:m.id, nome:m.nome, ordem:+m.ordem || 0, ativo:m.ativo !== false }));
   OFI = [...sbRaw.oficinas.values()].map(o => ({ id:o.id, minaId:o.mina_id, mina:o.mina || '', nome:o.nome, qtdBox:o.qtd_box, patio:o.patio, criadoEm:o.created_at }));
   minasAtualizar();
-  ST = {}; PS = {}; SEG = {}; ALOC = {}; IMP = {};
+  ST = {}; PS = {}; SEG = {}; ALOC = {}; IMP = {}; LIMP = {};
   dados = [...sbRaw.atividades.values()].map(a => {
     const p = P.get(a.programacao_id) || {};
     const d = { _id:a.id, TAG:a.tag, Ordem:a.ordem, Atividade:a.atividade, Inicio:new Date(a.inicio), Fim:new Date(a.fim),
@@ -3479,6 +3511,7 @@ function montarDeRaw(){
     if(p.status && p.status !== 'ni') PS[p.id] = { st:p.status, ini:p.iniciada_em, ...(p.finalizada_em ? {fim:p.finalizada_em} : {}), ...(p.reaberta_em ? {reaberto:p.reaberta_em} : {}) };
     if(p.seguir_com) SEG[p.id] = p.seguir_com;
     if(p.importado_por) IMP[p.id] = p.importado_por;
+    if(p.lote_import) LIMP[p.id] = { id:p.lote_import, em:p.lote_import_em, arq:p.lote_arquivo || '' };
   });
   sbRaw.alocacoes.forEach(a => ALOC[a.programacao_id] = { of:a.oficina_id, loc:a.local });
   recalcular(); montarFiltros(); cacheLocalLater();
@@ -3543,10 +3576,11 @@ function linhasAtuais(){
     programacoes: [...lotes].map(([id, it]) => {
       let mi = Infinity; it.forEach(d => { if(+d.Inicio < mi) mi = +d.Inicio; });
       const ps = PS[id];
-      return { id, tag:it[0].TAG, semana:semanaDe(new Date(mi)).label, corretiva:it.some(d => d.Tipo === 'COR'),
+      return { id, tag:it[0].TAG, semana:(it.find(d => d.Semana)?.Semana) || semanaDe(new Date(mi)).label, corretiva:it.some(d => d.Tipo === 'COR'),
         status:ps ? ps.st : 'ni', iniciada_em:tsN(ps?.ini), finalizada_em:tsN(ps?.fim), reaberta_em:tsN(ps?.reaberto),
         seguir_com:(SEG[id] && lotes.has(SEG[id])) ? SEG[id] : null,
-        importado_por:IMP[id] || (!sbSnap.programacoes.has(id) && EU?.id ? (IMP[id] = EU.id) : null) };
+        importado_por:IMP[id] || (!sbSnap.programacoes.has(id) && EU?.id ? (IMP[id] = EU.id) : null),
+        lote_import:LIMP[id]?.id || null, lote_import_em:tsN(LIMP[id]?.em), lote_arquivo:LIMP[id]?.arq || null };
     }),
     atividades: dados.map(d => { const s = ST[stKey(d)];
       return { id:d._id, programacao_id:d.Lote, tag:d.TAG, ordem:d.Ordem, atividade:d.Atividade,
@@ -3886,6 +3920,7 @@ function colsSlots(){
 <script>
 /* ---------- estado ---------- */
 let IMP = {};                         // programação -> id do usuário que importou/criou
+let LIMP = {};                        // programação -> { id do lote de importação, em, arq }
 let EXM = new Map();                  // executor -> Set(oficina_id)
 let acsQ = '';
 const meuPerfil = () => EU?.perfil || 'usuario';
@@ -4028,6 +4063,52 @@ async function acsDefinir(uid, ofs, dar, silencioso){
   return true;
 }
 
+/* ---------- exclusão por lote de importação ---------- */
+const podeExcluirProg = id => ehADM() || (!psDe(id) && podeExcluirLote(id));
+function lotesImp(){
+  const m = new Map();
+  LOTES.forEach(l => { const li = LIMP[l.id]; if(!li) return;
+    if(!m.has(li.id)) m.set(li.id, { ...li, progs:[] }); m.get(li.id).progs.push(l); });
+  return [...m.values()].sort((a,b) => String(b.em).localeCompare(String(a.em)));
+}
+function abrirLotesImp(){
+  const L = lotesImp(), semLote = LOTES.filter(l => !LIMP[l.id] && !l.cor).length;
+  const linha = g => {
+    const ok = g.progs.filter(l => podeExcluirProg(l.id)), ex = g.progs.filter(l => psDe(l.id)?.st === 'ex').length, fi = g.progs.filter(l => psDe(l.id)?.st === 'fi').length;
+    const sem = [...new Set(g.progs.map(l => l.sem.label))].sort();
+    const quem = nomeUsr(IMP[g.progs[0].id]);
+    return `<div class="nr eq" data-f="${esc(norm(g.arq + ' ' + sem.join(' ') + ' ' + quem))}">
+      <div class="nr-m"><div class="nr-t">${ic('file-spreadsheet','sm')}<b>${esc(g.arq || 'Planilha')}</b>${sem.map(s => `<span class="wk">${ic('calendar','sm')}${s}</span>`).join('')}</div>
+        <small><span>${ic('clock','sm')}Importado em ${g.em ? fmtDH(new Date(g.em)) : '—'}</span>${quem ? `<span>${ic('user','sm')}${esc(quem)}</span>` : ''}<span>${ic('layers','sm')}${g.progs.length} programação(ões) · ${g.progs.reduce((s,l) => s + l.itens.length, 0)} ativ.</span></small>
+        ${ex || fi ? `<small style="color:${ehADM() ? 'var(--err)' : 'var(--warn)'}"><span>${ic(ehADM() ? 'triangle-alert' : 'lock','sm')}${ex ? `${ex} em execução` : ''}${ex && fi ? ' · ' : ''}${fi ? `${fi} finalizada(s)` : ''} — ${ehADM() ? 'serão excluídas junto (somente ADM)' : 'não serão excluídas'}</span></small>` : ''}</div>
+      <div class="nr-s">${ok.length ? `<button class="btn sm danger" data-dlote="${g.id}">${ic('trash-2','sm')}Excluir ${ok.length}</button>` : `<span class="pill gr">${ic('lock','sm')}Nada a excluir</span>`}</div></div>`;
+  };
+  abrirModal('Lotes de importação', 'package-x', `
+    <div class="hint" style="max-width:none;margin-bottom:12px">${ic('info','sm')}<span>Exclua de uma vez todas as programações importadas em um lote para corrigir e importar novamente. ${ehADM() ? 'Como <b>ADM</b>, você também pode excluir programações <b>em execução</b> ou <b>finalizadas</b>; o registro de execução delas será perdido.' : 'Programações <b>em execução</b> ou <b>finalizadas</b> só podem ser excluídas pelo <b>ADM</b>.'}${meuPerfil() === 'programador' ? ' Você só pode excluir programações que importou.' : ''}</span></div>
+    ${L.length > 4 ? `<div class="input" style="margin-bottom:12px">${ic('search')}<input id="nrQ" placeholder="Buscar planilha, semana ou usuário..."></div>` : ''}
+    <div class="nrl" id="nrL">${L.length ? L.map(linha).join('') : `<div class="empty"><div class="eic">${ic('inbox')}</div>Nenhum lote de importação registrado.</div>`}</div>
+    ${semLote ? `<p style="margin-top:10px;color:var(--muted);font-size:12px">${semLote} programação(ões) importada(s) antes deste recurso não têm lote registrado; exclua-as individualmente.</p>` : ''}`, null, 'md');
+  const body = $('mBody');
+  if($('nrQ')) $('nrQ').oninput = e => { const q = norm(e.target.value); body.querySelectorAll('#nrL > [data-f]').forEach(r => r.hidden = q && !r.dataset.f.includes(q)); };
+  body.querySelectorAll('[data-dlote]').forEach(b => b.onclick = () => {
+    const g = L.find(x => x.id === b.dataset.dlote), ok = g.progs.filter(l => podeExcluirProg(l.id)), fica = g.progs.length - ok.length;
+    abrirModal('Excluir lote de importação', 'trash-2', `<p>Excluir <b>${ok.length}</b> programação(ões) do lote <b>${esc(g.arq || 'Planilha')}</b> (${g.em ? fmtDH(new Date(g.em)) : ''})?</p>
+      <ul style="margin:8px 0 0 18px;max-height:220px;overflow:auto">${ok.map(l => `<li><b>${esc(l.id)}</b>${ALOC[l.id] ? ` · ${esc(locTxt(l.id))}` : ''}${psDe(l.id) ? ` · <span style="color:var(--err);font-weight:600">${psDe(l.id).st === 'fi' ? 'finalizada' : 'em execução'}</span>` : ''}</li>`).join('')}</ul>
+      ${ok.some(l => psDe(l.id)) ? `<p style="margin-top:8px;color:var(--err)">O registro de execução (status e motivos) das programações em execução ou finalizadas será perdido.</p>` : ''}
+      ${fica ? `<p style="margin-top:8px;color:var(--warn)">${fica} programação(ões) em execução, finalizada(s) ou sem permissão permanecem.</p>` : ''}
+      <p style="margin-top:8px;color:var(--err)">As alocações em BOX/pátio dessas programações também serão removidas.</p>`,
+      `<button class="btn" id="dlV">Voltar</button><button class="btn red" id="dlS">${ic('trash-2')}Excluir ${ok.length}</button>`);
+    $('dlV').onclick = abrirLotesImp;
+    $('dlS').onclick = () => {
+      const ids = new Set(ok.map(l => l.id));
+      dados = dados.filter(d => !ids.has(d.Lote));
+      ids.forEach(id => { delete ALOC[id]; delete PS[id]; delete SEG[id]; delete LIMP[id]; delete IMP[id]; });
+      Object.keys(SEG).forEach(k => { if(ids.has(SEG[k])) delete SEG[k]; });
+      salvar(); alSalvar(); stSalvar(); segSalvar(); recalcular(); montarFiltros(); fecharModal(); render();
+      toast(`${ids.size} programação(ões) excluída(s) do lote`,'ok');
+    };
+  });
+}
 /* ---------- aplicação das regras nas telas ---------- */
 (function(){
   // Programação: botão Excluir só para quem pode
@@ -4035,6 +4116,8 @@ async function acsDefinir(uid, ofs, dar, silencioso){
   renderLotes = function(LF){
     _rl(LF);
     $('vLotes').querySelectorAll('[data-del]').forEach(b => {
+      const ps = psDe(b.dataset.del);
+      if(ps && !ehADM()){ b.closest('.lc-ops').innerHTML = `<span class="imp-by">${ic('lock','sm')}${ps.st === 'fi' ? 'Finalizada' : 'Em execução'} · não pode ser excluída</span>`; return; }
       if(podeExcluirLote(b.dataset.del)) return;
       const who = nomeUsr(IMP[b.dataset.del]);
       b.closest('.lc-ops').innerHTML = `<span class="imp-by">${ic('lock','sm')}${who ? `Importada por ${esc(who)}` : 'Exclusão restrita'}</span>`;
@@ -4079,7 +4162,8 @@ async function acsDefinir(uid, ofs, dar, silencioso){
   const _ci = confirmarImport;
   confirmarImport = function(){
     const ids = pend ? pend.lotes.filter(l => pend.sel[l.id]).map(l => l.id) : [];
-    _ci(); if(EU?.id) ids.forEach(id => IMP[id] = EU.id); agendarSync(); if(tela === 'prog') render();
+    const lote = { id:novoId(), em:new Date().toISOString(), arq:pend?.nome || '' };
+    _ci(); ids.forEach(id => { LIMP[id] = lote; if(EU?.id) IMP[id] = EU.id; }); agendarSync(); if(tela === 'prog') render();
   };
 })();
 
