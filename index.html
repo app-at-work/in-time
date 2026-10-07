@@ -537,6 +537,9 @@ td.c,th.c{text-align:center}
 .pill.ni{background:#eef2f2;color:var(--muted)}
 .pill.ex{background:var(--blue-soft);color:var(--blue);border:1px solid #cdd8fb}
 .pill.fi{background:#e7f6ec;color:var(--ok);border:1px solid #bfe5cb}
+.pill.ni-atras{background:var(--err-soft);color:var(--err);border:1px solid #f5c2c7}
+.pill.ni-hoje{background:#fff4e5;color:#b45309;border:1px solid #f6dfae}
+.pill.ni-futura{background:var(--blue-soft);color:var(--blue);border:1px solid #cdd8fb}
 .tl li.nex .passo{background:var(--err)!important}
 .tl .bx.st-nex{background:#fff7f8;border-color:#f5c2c7}
 .mot.nex{background:#fff;border:1px dashed var(--err);color:#a3212e}
@@ -1000,6 +1003,7 @@ header .sb-st ~ .actions{margin-left:10px}
 .tl-l.cn .lk2:hover{background:#eef2f2}
 .cn-m{display:block;font-size:12px;color:#56706e;font-style:italic;margin-top:1px}
 .hbtn .spin{animation:spin 1s linear infinite}
+.lc-hoje{margin:0 14px 8px 18px;padding:8px 10px;border:1px solid #f6dfae;background:#fff8e6;border-radius:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.lc-hoje>small{color:var(--muted);display:inline-flex;align-items:center;gap:4px;min-width:0}.pill.hj{background:#fff4e5;color:#b45309;border:1px solid #f6dfae;max-width:100%;overflow:hidden;text-overflow:ellipsis}.pill.hj.atras{background:var(--err-soft);color:var(--err);border-color:#f5c2c7}.al>.pill.hj{align-self:flex-start;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body class="locked">
@@ -1037,6 +1041,8 @@ header .sb-st ~ .actions{margin-left:10px}
   <div class="actions" id="hActCfg" hidden></div>
   <div class="actions" id="hActMin" hidden></div>
   <div class="actions" id="hActAcs" hidden></div>
+  <div class="actions" id="hActRep" hidden><button class="hbtn solid" id="repAdd"><i data-lucide="plus"></i>Adicionar report</button></div>
+  <div class="actions" id="hActOps" hidden><button class="hbtn" id="opsRefresh" onclick="opsCarregar(true)"><i data-lucide="refresh-cw"></i>Atualizar agora</button></div>
 </header>
 
 <main>
@@ -1142,6 +1148,27 @@ header .sb-st ~ .actions{margin-left:10px}
         </table>
       </div>
     </div>
+  </section>
+  <!-- ================= REPORT ================= -->
+  <section class="scr" id="scrRep" hidden>
+    <div class="kpis" id="repKpis"></div>
+    <div class="toolbar"><div class="input"><i data-lucide="search"></i><input id="repQ" placeholder="Buscar equipamento, motivo ou técnico..."></div><span class="fres" id="repRes"></span></div>
+    <div class="panel"><div class="rep-list" id="repList"></div></div>
+  </section>
+  <!-- ================= STATUS OPERACIONAL ================= -->
+  <section class="scr" id="scrOps" hidden>
+    <div class="ops-cache" id="opsCache"></div>
+    <div class="kpis" id="opsKpis"></div>
+    <div class="toolbar ops-tools">
+      <div class="input"><i data-lucide="search"></i><input id="opsQ" placeholder="Buscar equipamento, TAG, mina, frota, modelo ou razão..."></div>
+      <div class="sel-w ops-select"><select id="opsEvento"><option value="">Todas as categorias de tempo</option></select></div>
+      <span class="fres" id="opsRes"></span>
+    </div>
+    <div class="panel"><div class="tbl-wrap">
+      <table class="rsp" id="opsTable"><thead><tr>
+        <th>Equipamento</th><th>TAG</th><th>Mina</th><th>Frota</th><th>Modelo</th><th>Categoria tipo</th><th>Categoria tempo</th><th>Razão</th><th>Data inicial</th><th>Data final</th><th>Comentário</th><th>ID apontamento</th>
+      </tr></thead><tbody id="opsTb"></tbody></table>
+    </div></div>
   </section>
 </main>
 </div>
@@ -1417,7 +1444,9 @@ async function baixarModelo(){
       {header:'Atividade',width:50},
       {header:'OMVE',width:12},
       {header:'Inicio',width:20,style:{numFmt:FMT_DH}},
-      {header:'Fim',width:20,style:{numFmt:FMT_DH}}
+      {header:'Fim',width:20,style:{numFmt:FMT_DH}},
+      {header:'CenTrabOperação',width:18,style:{numFmt:'@'}},
+      {header:'Recursos',width:12}
     ];
     estiloCab(ws);
     const valid = {type:'date', operator:'greaterThan', allowBlank:true, formulae:[new Date(Date.UTC(2000,0,1))],
@@ -1436,9 +1465,9 @@ async function baixarModelo(){
 /* ---------- modelos de importação ---------- */
 const MODELOS = {
   padrao:{ nome:'Modelo padrão', desc:'Planilha baixada no botão Modelo (aba Modelo)', icon:'file-spreadsheet', aba:'Modelo', tabela:'',
-    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['Atividade'], OMVE:['OMVE'], Inicio:['Inicio','Início'], Fim:['Fim'] } },
+    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['Atividade'], OMVE:['OMVE'], CenTrab:['CenTrabOperação','CenTrabOperacao','CenTrab Operação','Cen.Trab.Operação','Centro de trabalho'], Recursos:['Recursos','Recurso'], Inicio:['Inicio','Início'], Fim:['Fim'] } },
   iw49n:{ nome:'Programação Semanal (IW49N)', desc:'Aba Programação_Semanal · tabela Base_IW49N', icon:'table-2', aba:'Programação_Semanal', tabela:'Base_IW49N',
-    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['TxtDesc.Oper.','TxtDesc. Oper.','TxtDesc Oper'], OMVE:['OMVE'],
+    map:{ TAG:['TAG'], Ordem:['Ordem'], Atividade:['TxtDesc.Oper.','TxtDesc. Oper.','TxtDesc Oper'], OMVE:['OMVE'], CenTrab:['CenTrabOperação','CenTrabOperacao','CenTrab Operação','Cen.Trab.Operação','Centro de trabalho'], Recursos:['Recursos','Recurso'],
           Inicio:['Inicio Programação','Início Programação'], Fim:['Término Programação','Termino Programação'] } }
 };
 let modeloImp = localStorage.getItem('modelo_import') || 'padrao', modeloEsc = null;
@@ -1448,7 +1477,7 @@ function escolherModelo(){
     <p style="margin-bottom:12px">Selecione o modelo da planilha que será importada:</p>
     <div class="mdl-l">${Object.entries(MODELOS).map(([k,M]) => `<button type="button" class="mdl ${k===modeloImp?'on':''}" data-md="${k}">
       <span class="mdl-i">${ic(M.icon)}</span><span class="mdl-t"><b>${M.nome}</b><small>${M.desc}</small>
-      <span class="mdl-c">${COLS.concat('OMVE').map(c => `<i title="${c}">${esc(M.map[c][0])}</i>`).join('')}</span></span>${k===modeloImp ? ic('circle-check','sm ok') : ic('circle','sm')}</button>`).join('')}</div>`,
+      <span class="mdl-c">${COLS.concat('OMVE','CenTrab','Recursos').map(c => `<i title="${c}">${esc(M.map[c][0])}</i>`).join('')}</span></span>${k===modeloImp ? ic('circle-check','sm ok') : ic('circle','sm')}</button>`).join('')}</div>`,
     `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn solid" id="mdlGo">${ic('folder-open')}Selecionar arquivo</button>`);
   let sel = modeloImp;
   $('mBody').querySelectorAll('[data-md]').forEach(b => b.onclick = () => { sel = b.dataset.md;
@@ -1508,7 +1537,7 @@ function processar(linhas, nomeArq, mk='padrao'){
     if(COLS.every(c => String(get(c) ?? '').trim() === '')) continue;
     const ini = parseData(get('Inicio')), fim = parseData(get('Fim'));
     const reg = { _linha:i+1, TAG:String(get('TAG')).trim().toUpperCase(), Ordem:String(get('Ordem')).trim(),
-      Atividade:String(get('Atividade')).trim(), OMVE:mapa.OMVE !== undefined && ehOMVE(get('OMVE')), Inicio:ini, Fim:fim, _erros:[] };
+      Atividade:String(get('Atividade')).trim(), OMVE:mapa.OMVE !== undefined && ehOMVE(get('OMVE')), CenTrab:mapa.CenTrab !== undefined ? String(get('CenTrab') ?? '').trim() : '', Recursos:mapa.Recursos !== undefined ? String(get('Recursos') ?? '').trim() : '', Inicio:ini, Fim:fim, _erros:[] };
     if(!reg.TAG) reg._erros.push('TAG vazia');
     if(!reg.Ordem) reg._erros.push('Ordem vazia');
     if(!reg.Atividade) reg._erros.push('Atividade vazia');
@@ -1600,8 +1629,37 @@ function corLote(id){
 }
 const wkChip = s => `<span class="wk" title="Seg ${fmtD(s.seg)} a Dom ${fmtD(s.dom)}">${ic('calendar','sm')}${s.label}</span>`;
 
+const ctTxt = r => [r.CenTrab ? `${ic('building-2','sm')}Centro: <b>${esc(r.CenTrab)}</b>` : '', r.Recursos ? `${ic('users','sm')}Recursos: <b>${esc(r.Recursos)}</b>` : ''].filter(Boolean).map(x => `<span>${x}</span>`).join('');
+const ctLote = l => { const c = [...new Set(l.itens.map(r => r.CenTrab).filter(Boolean))].sort(cmpTxt); return c; };
 const temOMVE = l => !!l && l.itens.some(r => r.OMVE);
 const omveBadge = (n='') => `<span class="omve-b" title="OM vermelha · atividade crítica de segurança">${ic('shield-alert','sm')}OMVE${n ? ' · '+n : ''}</span>`;
+/* programação prevista para iniciar hoje */
+function inicioHojeDe(l, agoraMs=Date.now()){
+  if(!l || psDe(l.id)) return null;
+  const ag=new Date(agoraMs), ini=new Date(l.ini);
+  if(ini.getFullYear()!==ag.getFullYear() || ini.getMonth()!==ag.getMonth() || ini.getDate()!==ag.getDate()) return null;
+  const falta=+ini-agoraMs;
+  if(falta < 0) return {atrasada:true, ms:Math.abs(falta)};
+  return {atrasada:false, ms:falta};
+}
+function inicioHojeBadge(l){
+  const h=inicioHojeDe(l); if(!h) return '';
+  return h.atrasada
+    ? `<span class="pill hj atras" title="O horário previsto de início de hoje já passou">${ic('alarm-clock','sm')}Hoje · atraso ${fmtDur(h.ms)}</span>`
+    : `<span class="pill hj" title="Tempo restante até o início previsto de hoje">${ic('calendar-clock','sm')}Hoje · inicia em ${fmtDur(h.ms)}</span>`;
+}
+/* status visual calculado para os cards e para o Informativo */
+function statusCardProg(l){
+  const ps = psDe(l.id);
+  if(ps?.st === 'fi') return `<span class="pill fi">${ic('flag','sm')}Finalizada</span>`;
+  if(ps?.st === 'ex') return `<span class="pill ex">${ic('loader','sm')}Em execução</span>`;
+  const ag = new Date(), ini = new Date(l.ini);
+  if(+ini < +ag) return `<span class="pill ni-atras">${ic('alarm-clock','sm')}Não iniciada em atraso</span>`;
+  const hoje = ini.getFullYear() === ag.getFullYear() && ini.getMonth() === ag.getMonth() && ini.getDate() === ag.getDate();
+  if(hoje) return `<span class="pill ni-hoje">${ic('calendar-clock','sm')}Não iniciada para hoje</span>`;
+  return `<span class="pill ni-futura">${ic('calendar-arrow-up','sm')}Não iniciada a partir de amanhã</span>`;
+}
+
 function cardLote(l, modo){
   const c = corLote(l.id), sel = modo === 'conf' && pend.sel[l.id];
   const nOrd = new Set(l.itens.map(r => r.Ordem)).size;
@@ -1609,13 +1667,15 @@ function cardLote(l, modo){
   const loc = modo === 'main' ? locTxt(l.id) : '';
   const lista = l.itens.map(r => `<li><span class="passo">${r.Passo}</span><div><b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''} · ${esc(r.Atividade)}
       <small>${ic('clock','sm')}${fmtDH(r.Inicio)} → ${fmtDH(r.Fim)} · ${fmtDur(r.Fim-r.Inicio)}</small>
+      ${ctTxt(r) ? `<small class="ct-ln">${ctTxt(r)}</small>` : ''}
       ${r._avisos.map(a=>`<span class="av">${ic('triangle-alert','sm')}${esc(a)}</span>`).join('')}</div></li>`).join('');
   return `<div class="lcard ${sel?'sel':''} ${l.cor?'cor':''}" style="--c:${c}">
     <div class="lc-h">
       ${modo==='conf' ? `<input type="checkbox" class="ck ckLote" data-id="${esc(l.id)}" ${sel?'checked':''}>` : ''}
       <span class="code"><i style="background:${c}"></i>${esc(l.id)}</span>${temOMVE(l) ? omveBadge(l.itens.filter(r=>r.OMVE).length) : ''}${l.cor ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}
-      <div class="right">${acao}${modo==='conf' && l.sep ? `<span class="pill gr" title="Separada da programação anterior da mesma TAG (intervalo maior que a tolerância)">${ic('scissors','sm')}Intervalo de ${fmtDur(l.sep)}</span>` : ''}${wkChip(l.sem)}${l.avisos.length ? `<span class="pill wr">${ic('triangle-alert','sm')}${l.avisos.length}</span>` : `<span class="pill ok">${ic('check','sm')}OK</span>`}</div>
+      <div class="right">${acao}${modo==='main' ? statusCardProg(l) : ''}${modo==='conf' && l.sep ? `<span class="pill gr" title="Separada da programação anterior da mesma TAG (intervalo maior que a tolerância)">${ic('scissors','sm')}Intervalo de ${fmtDur(l.sep)}</span>` : ''}${wkChip(l.sem)}${l.avisos.length ? `<span class="pill wr">${ic('triangle-alert','sm')}${l.avisos.length}</span>` : `<span class="pill ok">${ic('check','sm')}OK</span>`}</div>
     </div>
+    ${modo==='main' && inicioHojeDe(l) ? `<div class="lc-hoje">${inicioHojeBadge(l)}<small>${ic('clock-3','sm')}Início previsto: <b>${fmtDH(l.ini)}</b></small></div>` : ''}
     <div class="lc-m">
       <div><small>${ic('list-checks','sm')}Atividades</small><b>${l.itens.length}</b></div>
       <div><small>${ic('clipboard-list','sm')}Ordens</small><b>${nOrd}</b></div>
@@ -1624,6 +1684,7 @@ function cardLote(l, modo){
       <div><small>${ic('timer','sm')}Janela</small><b>${fmtDur(l.fim-l.ini)}</b></div>
     </div>
     ${loc ? `<div class="lc-av"><span class="loc">${ic('map-pin','sm')}${esc(loc)}</span></div>` : ''}
+    ${ctLote(l).length ? `<div class="lc-av ct-chips">${ctLote(l).map(c => `<span class="ct-chip" title="Centro de trabalho">${ic('building-2','sm')}${esc(c)}</span>`).join('')}</div>` : ''}
     ${l.avisos.length ? `<div class="lc-av">${l.avisos.map(a=>`<span class="av">${ic('triangle-alert','sm')}${esc(a)}</span>`).join('')}</div>` : ''}
     ${modo==='main'
       ? `<div class="acc"><button type="button" class="acc-b" data-sq="${esc(l.id)}">${ic('list-ordered')}Sequência de atividades <span class="pill gr">${l.itens.length}</span>${ic('chevron-right','chev')}</button></div>
@@ -1740,7 +1801,7 @@ function confirmarImport(){
   idsRem.forEach(id => { if(!novosIds.has(id)) delete ALOC[id]; });
   const agora = new Date();
   sel.forEach(l => l.itens.forEach(r => base.push({
-    TAG:r.TAG, Ordem:r.Ordem, Atividade:r.Atividade, OMVE:!!r.OMVE, Inicio:r.Inicio, Fim:r.Fim,
+    TAG:r.TAG, Ordem:r.Ordem, Atividade:r.Atividade, OMVE:!!r.OMVE, CenTrab:r.CenTrab || '', Recursos:r.Recursos || '', Inicio:r.Inicio, Fim:r.Fim,
     Semana:l.sem.label, Passo:r.Passo, Lote:l.id, ConfirmadoEm:agora
   })));
   dados = base; pend = null;
@@ -2442,7 +2503,7 @@ function slotHtml(o, loc, ids){
   const cards = L.map(l => {
     const c = corLote(l.id), nOrd = new Set(l.itens.map(r => r.Ordem)).size;
     return `<div class="al ${l.cor?'cor':''}" draggable="true" data-id="${esc(l.id)}" style="--c:${c}" title="${l.cor?'Corretiva · ':''}Arraste para outro local">
-      ${l.cor ? `<span class="cor-b">${ic('siren','sm')}CORRETIVA</span>` : ''}${temOMVE(l) ? omveBadge(l.itens.filter(r=>r.OMVE).length) : ''}
+      ${l.cor ? `<span class="cor-b">${ic('siren','sm')}CORRETIVA</span>` : ''}${temOMVE(l) ? omveBadge(l.itens.filter(r=>r.OMVE).length) : ''}${inicioHojeBadge(l)}
       <div class="t"><span class="tag">${esc(l.tag)}</span><span class="code">${esc(l.id)}</span>
         <button class="x" data-rm="${esc(l.id)}" title="Remover do ${esc(loc)}">${ic('x','sm')}</button></div>
       <small><span>${ic('clock','sm')}${fmtDHc(l.ini)} → ${fmtDHc(l.fim)}</span></small>
@@ -2550,10 +2611,17 @@ function formAtribuir(o, loc){
 
 /* ---------- CORRETIVA: cadastro de ordens direto no BOX/PÁTIO ---------- */
 const dtLocal = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-function formCorretiva(o, loc){
+async function formCorretiva(o, loc){
   const agoraD = new Date(); agoraD.setSeconds(0,0);
   const sem = semanaDe(agoraD);
-  const tags = [...new Set(LOTES.map(l => l.tag))].sort(cmpTxt);
+  if(!opsCache && !opsLoading){ await opsCarregar(false); }
+  const tagsHmc = [...new Map((opsRows||[])
+    .filter(r => String(r.categoria_tempo||'').trim().toUpperCase() === 'HMC')
+    .map(r => {
+      const tag=String(r.equipamento||r.TAG_Relacao||'').trim().toUpperCase();
+      return [tag,{tag,mina:r.MINA_Relacao||'',frota:r.FROTA_Relacao||'',modelo:r.MODELO_Relacao||'',razao:r.razao_descricao||''}];
+    }).filter(([tag])=>tag)).values()].sort((a,b)=>cmpTxt(a.tag,b.tag));
+  let tagCorSel='';
   let linhas = [{ ord:'', atv:'', ini:dtLocal(agoraD), fim:dtLocal(new Date(+agoraD + 36e5)) }];
   abrirModal(`Corretiva · ${o.nome} · ${loc}`, 'siren', `
     <div class="cor-info">
@@ -2562,13 +2630,22 @@ function formCorretiva(o, loc){
       <div><small>${ic('clock','sm')}Registro</small><b>${fmtDH(agoraD)}</b></div>
     </div>
     <div class="cor-sec">
-      <label class="cor-lbl" for="corTag">Equipamento (TAG)<em>*</em></label>
-      <div class="input">${ic('truck')}<input id="corTag" list="corTags" maxlength="30" placeholder="Digite ou selecione o equipamento" style="text-transform:uppercase"></div>
-      <datalist id="corTags">${tags.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+      <label class="cor-lbl">Equipamento (TAG) · Categoria tempo HMC<em>*</em></label>
+      <div class="cor-tag-dd" id="corTagDd">
+        <button type="button" class="cor-tag-btn" id="corTagBtn">
+          <span class="cor-tag-ic">${ic('truck')}</span>
+          <span class="cor-tag-tx"><b id="corTagVal">Selecione um equipamento</b><small id="corTagMeta">Somente equipamentos HMC do Status Operacional</small></span>
+          ${ic('chevron-down','sm')}
+        </button>
+        <div class="cor-tag-pop" id="corTagPop" hidden>
+          <div class="input">${ic('search')}<input id="corTagQ" placeholder="Buscar TAG, mina, frota ou modelo..."></div>
+          <div class="cor-tag-list" id="corTagList"></div>
+        </div>
+      </div>
     </div>
     <div class="cor-sec">
       <div class="cor-h"><span class="cor-lbl">${ic('clipboard-list','sm')}Ordens a executar <span class="pill gr" id="corN"></span></span><button class="btn sm" id="corAdd">${ic('plus','sm')}Adicionar ordem</button></div>
-      <div class="cor-head"><span></span><span>Ordem<em>*</em></span><span>Atividade<em>*</em></span><span>Início<em>*</em></span><span>Fim<em>*</em></span><span></span></div>
+      <div class="cor-head"><span></span><span>Ordem <small>(opcional)</small></span><span>Atividade<em>*</em></span><span>Início<em>*</em></span><span>Fim<em>*</em></span><span></span></div>
       <div class="cor-l" id="corL"></div>
     </div>
     <div id="corErr"></div>`,
@@ -2596,15 +2673,25 @@ function formCorretiva(o, loc){
     linhas.push({ ord:'', atv:'', ini:dtLocal(base), fim:dtLocal(new Date(+base + 36e5)) });
     desenhar(); $('corL').lastElementChild.querySelector('[data-c=ord]').focus();
   };
+  const renderTagsHmc = () => {
+    const q=norm($('corTagQ')?.value||'');
+    const lista=tagsHmc.filter(x=>!q||norm([x.tag,x.mina,x.frota,x.modelo,x.razao].join(' ')).includes(q));
+    $('corTagList').innerHTML=lista.length?lista.map(x=>`<button type="button" class="cor-tag-opt ${x.tag===tagCorSel?'on':''}" data-tag="${esc(x.tag)}"><span class="cor-tag-code">${esc(x.tag)}</span><span><b>${esc(x.modelo||'Modelo não informado')}</b><small>${esc([x.mina,x.frota,x.razao].filter(Boolean).join(' · ')||'Categoria tempo HMC')}</small></span>${x.tag===tagCorSel?ic('check','sm'):''}</button>`).join(''):`<div class="ms-empty">Nenhum equipamento com categoria tempo HMC encontrado.</div>`;
+    icons();
+  };
+  $('corTagBtn').onclick=()=>{const p=$('corTagPop');p.hidden=!p.hidden;$('corTagDd').classList.toggle('open',!p.hidden);if(!p.hidden){renderTagsHmc();setTimeout(()=>$('corTagQ').focus(),20)}};
+  $('corTagQ').oninput=renderTagsHmc;
+  $('corTagList').onclick=e=>{const b=e.target.closest('[data-tag]');if(!b)return;tagCorSel=b.dataset.tag;const x=tagsHmc.find(v=>v.tag===tagCorSel);$('corTagVal').textContent=tagCorSel;$('corTagMeta').textContent=[x?.mina,x?.frota,x?.modelo].filter(Boolean).join(' · ')||'Categoria tempo HMC';$('corTagPop').hidden=true;$('corTagDd').classList.remove('open');renderTagsHmc();};
+  renderTagsHmc();
   $('corV').onclick = () => formAtribuir(o, loc);
   $('corS').onclick = () => {
     lerLinhas();
     const err = m => { $('corErr').innerHTML = `${ic('circle-alert','sm')}${esc(m)}`; icons(); };
-    const tag = $('corTag').value.trim().toUpperCase();
-    if(!tag){ $('corTag').focus(); return err('Informe o equipamento (TAG).'); }
+    const tag = tagCorSel;
+    if(!tag){ $('corTagBtn').focus(); return err('Selecione um equipamento HMC.'); }
     for(let i = 0; i < linhas.length; i++){
       const x = linhas[i], ini = x.ini ? new Date(x.ini) : null, fim = x.fim ? new Date(x.fim) : null;
-      if(!x.ord.trim() || !x.atv.trim()) return err(`Ordem ${i+1}: preencha ordem e atividade.`);
+      if(!x.atv.trim()) return err(`Atividade ${i+1}: preencha a atividade.`);
       if(!ini || isNaN(ini) || !fim || isNaN(fim)) return err(`Ordem ${i+1}: informe início e fim.`);
       if(fim < ini) return err(`Ordem ${i+1}: fim anterior ao início.`);
     }
@@ -2619,7 +2706,7 @@ function formCorretiva(o, loc){
     itSem = sem.label;
     fecharModal(); renderInTime(); toast(`Corretiva ${id} lançada em ${loc}`, 'ok');
   };
-  setTimeout(() => $('corTag').focus(), 50);
+  setTimeout(() => $('corTagBtn').focus(), 50);
 }
 
 /* ---------- STATUS DE EXECUÇÃO ---------- */
@@ -2705,7 +2792,7 @@ function abrirSequencia(id, manter){
         <div class="h"><b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''}${r.CorAdd ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}<span class="dur">${ic('timer','sm')}${fmtDur(r.Fim-r.Inicio)}</span>
           ${T ? `<span class="pill ${T.c}" style="margin-left:auto">${ic(T.i,'sm')}${T.t}</span>` : `<span class="pill gr" style="margin-left:auto">Pendente</span>`}</div>
         <div class="ds">${esc(r.Atividade)}</div>
-        <small><span>${ic('play','sm')}${fmtDH(r.Inicio)}</span><span>${ic('flag','sm')}${fmtDH(r.Fim)}</span></small>
+        <small><span>${ic('play','sm')}${fmtDH(r.Inicio)}</span><span>${ic('flag','sm')}${fmtDH(r.Fim)}</span>${ctTxt(r)}</small>
         ${r._avisos.map(a => `<span class="av">${ic('triangle-alert','sm')}${esc(a)}</span>`).join('')}
         ${st && st.st !== 'ok' && !edit ? `<div class="mot ${st.st}">${ic('message-square-text','sm')}<div>${esc(st.obs)}<small>${T.t} em ${fmtAgora(st.em)}</small></div></div>` : ''}
         ${st && st.st === 'ok' && !edit ? `<small style="margin-top:4px"><span>${ic('check','sm')}Executada em ${fmtAgora(st.em)}</span></small>` : ''}
@@ -2742,7 +2829,7 @@ function abrirSequencia(id, manter){
       <div><small>${ic('wrench','sm')}Soma das durações</small><b>${fmtDur(tot)}</b></div>
     </div>
     <ol class="tl" style="--c:${c}">${itens}</ol>`,
-    `${ps?.st !== 'fi' ? `<button class="btn" id="sqCor">${ic('list-plus')}Adicionar atividades</button>` : ''}${ex ? `<button class="btn" id="sqAll">${ic('check-check')}Executar todas pendentes</button>` : ''}<button class="btn solid" onclick="fecharModal()">Fechar</button>`, 'md');
+    `${ALOC[l.id] ? `<button class="btn" id="sqTransf">${ic('arrow-right-left')}Transferir de BOX</button>` : ''}${ps?.st !== 'fi' ? `<button class="btn" id="sqCor">${ic('list-plus')}Adicionar atividades</button>` : ''}${ex ? `<button class="btn" id="sqAll">${ic('check-check')}Executar todas pendentes</button>` : ''}<button class="btn solid" onclick="fecharModal()">Fechar</button>`, 'md');
   $('mBody').scrollTop = y;
 
   const atualizar = () => { stSalvar(); abrirSequencia(id, true); if(tela === 'int') renderInTime(); };
@@ -2808,6 +2895,7 @@ function abrirSequencia(id, manter){
     ST[stKey(l.itens[sqEdit.i])] = { st:sqEdit.tipo, obs, em:agora() };
     const tp = STL[sqEdit.tipo].t; sqEdit = null; atualizar(); toast(`Atividade ${tp.toLowerCase()}`,'ok');
   });
+  if($('sqTransf')) $('sqTransf').onclick = () => transferirBoxSeq(l);
   if($('sqCor')) $('sqCor').onclick = () => formAtividadesSeq(l);
   if($('sqAll')) $('sqAll').onclick = () => {
     const pend = l.itens.filter(r => !stDe(r));
@@ -2815,6 +2903,41 @@ function abrirSequencia(id, manter){
     pend.forEach(r => ST[stKey(r)] = { st:'ok', obs:'', em:agora() });
     atualizar(); toast(`${pend.length} atividade(s) executada(s)`,'ok');
   };
+}
+
+/* ---------- transferência de BOX pela Sequência de atividades ---------- */
+function transferirBoxSeq(l){
+  const atual=ALOC[l.id]; if(!atual){toast('Programação sem alocação','er');return;}
+  const ofAtual=OFI.find(o=>o.id===atual.of);
+  const oficinas=[...OFI].sort((a,b)=>ordMina(a.mina)-ordMina(b.mina)||cmpTxt(a.nome,b.nome));
+  let ofSel=atual.of,locSel=atual.loc,q='';
+  abrirModal(`Transferir de BOX · ${l.id}`,'arrow-right-left',`
+    <div class="tr-atual">${ic('map-pin')}<span><small>Local atual</small><b>${esc(locTxt(l.id)||'Sem alocação')}</b></span></div>
+    <div class="tr-grid">
+      <div class="tr-col"><label>Oficina</label><div class="input">${ic('search')}<input id="trQ" placeholder="Buscar mina ou oficina..."></div><div class="tr-list" id="trOfs"></div></div>
+      <div class="tr-col"><label>Novo BOX ou pátio</label><div class="tr-list" id="trLocs"></div></div>
+    </div><div id="trErr"></div>`,
+    `<button class="btn" id="trV">${ic('undo-2')}Voltar</button><button class="btn solid" id="trS">${ic('arrow-right-left')}Confirmar transferência</button>`,'md');
+  const draw=()=>{
+    const Q=norm(q),vis=oficinas.filter(o=>!Q||norm(`${o.mina} ${o.nome}`).includes(Q));
+    $('trOfs').innerHTML=vis.map(o=>`<button type="button" class="tr-opt ${o.id===ofSel?'on':''}" data-of="${o.id}"><span class="tr-ic">${ic('factory','sm')}</span><span><b>${esc(o.nome)}</b><small>${esc(o.mina)}</small></span>${o.id===ofSel?ic('check','sm'):''}</button>`).join('')||`<div class="ms-empty">Nenhuma oficina encontrada.</div>`;
+    const o=OFI.find(x=>x.id===ofSel),locs=o?locaisDe(o):[];
+    if(!locs.includes(locSel))locSel=locs[0]||'';
+    $('trLocs').innerHTML=locs.map(loc=>{const n=alocDe(o.id,loc).filter(id=>id!==l.id).length;return `<button type="button" class="tr-opt ${loc===locSel?'on':''}" data-loc="${esc(loc)}"><span class="tr-ic">${ic(loc===PATIO?'map-pinned':'warehouse','sm')}</span><span><b>${esc(loc)}</b><small>${n?`${n} programação(ões) no local`:'Local livre'}</small></span>${loc===locSel?ic('check','sm'):''}</button>`}).join('')||`<div class="ms-empty">Esta oficina não possui BOX ou pátio.</div>`;
+    $('trS').disabled=!locSel||(ofSel===atual.of&&locSel===atual.loc);icons();
+  };
+  $('trQ').oninput=e=>{q=e.target.value;draw()};
+  $('trOfs').onclick=e=>{const b=e.target.closest('[data-of]');if(!b)return;ofSel=b.dataset.of;locSel='';draw()};
+  $('trLocs').onclick=e=>{const b=e.target.closest('[data-loc]');if(!b)return;locSel=b.dataset.loc;draw()};
+  $('trV').onclick=()=>abrirSequencia(l.id);
+  $('trS').onclick=()=>{
+    if(!podeAgirOf(ofSel)){ $('trErr').innerHTML=`${ic('circle-alert','sm')}Sem permissão de ação na oficina selecionada.`;icons();return; }
+    ALOC[l.id]={of:ofSel,loc:locSel};alSalvar();
+    const o=OFI.find(x=>x.id===ofSel);itSel=o?.id||itSel;
+    if(tela==='int')renderInTime();
+    abrirSequencia(l.id);toast(`${l.id} transferida para ${o?.nome||''} · ${locSel}`,'ok');
+  };
+  draw();setTimeout(()=>$('trQ').focus(),40);
 }
 
 /* ---------- finalização: pendentes exigem justificativa ---------- */
@@ -3064,6 +3187,7 @@ function infDados(){
   const agMs = Date.now();
   G.atras = X.filter(x => x.st === 'ni' && x.l.ini < agMs).sort((a,b) => a.l.ini - b.l.ini);
   G.prox24 = X.filter(x => x.st === 'ni' && x.l.ini >= agMs && x.l.ini - agMs <= 24*36e5).sort((a,b) => a.l.ini - b.l.ini);
+  G.hojeIni = X.filter(x => !!inicioHojeDe(x.l)).sort((a,b)=>a.l.ini-b.l.ini);
   G.aguard = X.filter(x => aguardaDe(x.l.id)).sort((a,b) => a.l.ini - b.l.ini);
   G.omve = X.filter(x => temOMVE(x.l));
   G.omveExec = G.omve.filter(x => x.st === 'ex');
@@ -3150,8 +3274,45 @@ function wkPickLigar(){
   window._wkpOut = e => { const w = $('wkp'); if(w && !w.contains(e.target)) fechar(); };
   document.addEventListener('pointerdown', window._wkpOut);
 }
+function infStatusOperacional(){const cls=r=>{const t=String(r.categoria_tipo||'').trim().toUpperCase(),c=String(r.categoria_tempo||'').trim().toUpperCase();if(t==='HO'||t==='HT')return['operando','Operando'];if(t==='HM'){if(c==='HMC')return['corretiva','Corretiva'];if(c==='MPS')return['sistematica','Sistemática'];if(c==='MPNS')return['nao_sistematica','Não sistemática'];if(c==='HAC')return['acidente','Acidente'];return['manutencao','Em manutenção'];}return['outros','Outros'];};const rows=(opsRows||[]).filter(r=>String(r.MINA_Relacao||'').trim()!=='').map(r=>{const[k,status]=cls(r);return{r,k,status,mina:String(r.MINA_Relacao).trim(),frota:String(r.FROTA_Relacao||'Não informada'),eq:String(r.equipamento||r.TAG_Relacao||'Não informado')}});const cont={operando:0,manutencao:0,corretiva:0,sistematica:0,nao_sistematica:0,acidente:0,outros:0};rows.forEach(x=>cont[x.k]++);return{rows,cont,minas:groupBy(rows,x=>x.mina),atualizado:opsCache?.atualizado_em||null};}
+const SO_ICO={operando:'🟢',corretiva:'🔴',sistematica:'🔵',nao_sistematica:'🟡',acidente:'🟠',manutencao:'⚪',outros:'⚪'};
+const SO_LEG=[['operando','Operando'],['corretiva','Corretiva'],['sistematica','Sistemática'],['nao_sistematica','Não sistemática'],['acidente','Acidente']];
+const soIcone=k=>SO_ICO[k]||'⚪';
+const repsDe=eq=>REPORTS.filter(r=>norm(r.equip)===norm(eq)).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
+function textoStatusOperacional(){
+  const D=infDados(),SO=infStatusOperacional(),porTag=groupBy(D.X,x=>norm(x.l.tag));
+  const L=['*RELATÓRIO DIÁRIO · STATUS OPERACIONAL*',`Data: ${new Date().toLocaleDateString('pt-BR')} · Semana ${D.hoje.label}`,'',`*Legenda:* ${SO_LEG.map(([k,t])=>`${soIcone(k)} ${t}`).join(' · ')}`,''];
+  [...groupBy([...SO.rows].sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].forEach(([mina,rm])=>{
+    L.push(`*MINA · ${mina}*`);
+    [...groupBy(rm,x=>x.frota)].forEach(([frota,eqs])=>{
+      L.push(`  *Frota · ${frota}*`);
+      eqs.forEach(x=>{
+        L.push(`    ${soIcone(x.k)} *${x.eq}* · ${x.status}`);
+        repsDe(x.eq).forEach(r=>L.push(`      📝 Report: ${r.motivo} · ${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'}`));
+        (porTag.get(norm(x.eq))||[]).sort((a,b)=>a.l.ini-b.l.ini).forEach(y=>{
+          const n=new Set(y.l.itens.map(r=>r.Ordem)).size,p=psDe(y.l.id),ag=new Date(),ini=new Date(y.l.ini),hj=ini.toDateString()===ag.toDateString();
+          const st=p?.st==='fi'?'Finalizada':p?.st==='ex'?'Em execução':+ini<+ag?'Não iniciada em atraso':hj?'Não iniciada para hoje':'Não iniciada a partir de amanhã';
+          const loc=y.o?`${y.o.nome} · ${y.loc}`:'Sem BOX/pátio definido';
+          L.push(`      ↳ Programação: ${y.l.id}`,`         Status: ${st}`,`         Atividades: ${y.l.itens.length} · Ordens: ${n}`,`         Previsão: ${fmtDH(y.l.ini)} até ${fmtDH(y.l.fim)}`,`         Local: ${loc}`);
+        });
+      });
+      L.push('');
+    });
+  });
+  return L.join('\n').trim();
+}
+async function copiarStatusOperacional(){
+  const texto=textoStatusOperacional();
+  try{
+    if(navigator.clipboard&&window.isSecureContext) await navigator.clipboard.writeText(texto);
+    else{const t=document.createElement('textarea');t.value=texto;t.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
+    toast('Relatório diário copiado para a área de transferência','ok');
+  }catch(e){toast('Não foi possível copiar o relatório','er');}
+}
 function renderInf(){
+  if(!opsCache&&!opsLoading)opsCarregar(false).then(()=>{if(tela==='inf'&&!$('modal').classList.contains('show'))renderInf();});
   const el = $('news'), D = infDados(), G = D.G, n = D.X.length, s = D.hoje;
+  const SO=infStatusOperacional();
   const agoraD = new Date();
   const dataTxt = agoraD.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
   const periodo = `na semana ${s.label}`;
@@ -3277,6 +3438,22 @@ function renderInf(){
   const txtCanc = G.can.length
     ? `${lk('can', pl(G.can.length,'programação teve','programações tiveram'))} atividades canceladas ${periodo}, somando <b>${pl(nCan,'atividade cancelada','atividades canceladas')}</b> (${pctCan}% do total programado). Atividades canceladas deixam de contar no índice de execução, por isso é importante acompanhar os motivos registrados.${canCor ? ` Dessas programações, ${pl(canCor,'é corretiva','são corretivas')}.` : ''}`
     : `Nenhuma atividade foi cancelada ${periodo}. Toda a programação segue válida para o cálculo de execução.`;
+  const soRot={operando:'Operando',manutencao:'Em manutenção',corretiva:'Corretiva',sistematica:'Sistemática',nao_sistematica:'Não sistemática',acidente:'Acidente',outros:'Outros'},soOrd=['operando','manutencao','corretiva','sistematica','nao_sistematica','acidente','outros'];
+  const soResumo=soOrd.filter(k=>SO.cont[k]).map(k=>`<span class="so-s ${k}"><b>${SO.cont[k]}</b>${soRot[k]}</span>`).join('');
+  const progPorTag=groupBy(D.X,x=>norm(x.l.tag));
+  const soLista=[...groupBy([...SO.rows].sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].map(([mina,rm])=>`<details class="so-mina-grp" open><summary>${ic('mountain','sm')}<b>Mina · ${esc(mina)}</b><span>${pl(rm.length,'equipamento','equipamentos')}</span></summary>${[...groupBy(rm,x=>x.frota)].map(([frota,eqs])=>`<section class="so-frota-grp"><h5>${ic('truck','sm')}Frota · ${esc(frota)}<span>${eqs.length}</span></h5><div class="so-equip-list">${eqs.map(x=>{
+    const progs=(progPorTag.get(norm(x.eq))||[]).sort((a,b)=>a.l.ini-b.l.ini);
+    const progHtml=progs.map(y=>{
+      const ordens=new Set(y.l.itens.map(r=>r.Ordem)).size;
+      const local=y.o?`${y.o.nome} · ${y.loc}`:'Sem BOX/pátio definido';
+      return `<button type="button" class="so-prog" data-sq="${esc(y.l.id)}" title="Abrir sequência de atividades"><span class="so-prog-top"><span class="code">${esc(y.l.id)}</span>${statusCardProg(y.l)}${ic('chevron-right','sm')}</span><span class="so-prog-grid"><span><small>Atividades</small><b>${y.l.itens.length}</b></span><span><small>Ordens</small><b>${ordens}</b></span><span><small>Previsão de início</small><b>${fmtDH(y.l.ini)}</b></span><span><small>Previsão de finalização</small><b>${fmtDH(y.l.fim)}</b></span><span class="wide"><small>Local</small><b>${esc(local)}</b></span></span></button>`;
+    }).join('');
+    const reps=repsDe(x.eq);
+    const repHtml=reps.length?`<div class="so-report"><b>${ic('clipboard-pen-line','sm')}Report técnico</b>${reps.map(r=>`<div>${esc(r.motivo)}<small>${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'} · ${esc(r.autor||'Técnico')}</small></div>`).join('')}</div>`:'';
+    return `<div class="so-row ${progs.length?'has-prog':''}"><div class="so-head"><span class="so-dot" aria-hidden="true">${soIcone(x.k)}</span><b class="so-tag">${esc(x.eq)}</b><span class="so-s ${x.k}">${esc(x.status)}</span></div>${repHtml}${progs.length?`<div class="so-programacoes">${progHtml}</div>`:''}</div>`;
+  }).join('')}</div></section>`).join('')}</details>`).join('');
+  const comProg=SO.rows.filter(x=>(progPorTag.get(norm(x.eq))||[]).length).length;
+  const txtSO=SO.rows.length?`O retrato operacional reúne <b>${pl(SO.rows.length,'equipamento','equipamentos')}</b>. <b>${comProg}</b> possuem programação relacionada na semana ${esc(D.hoje.label)}. Clique em uma programação para abrir a respectiva <b>Sequência de atividades</b>.`:'Não há registros do Status Operacional com mina informada.';
   /* plantão */
   const plantao = G.fin6.length ? G.fin6.slice(0, 6).map(x => `<button class="pt" data-sq="${esc(x.l.id)}"><span class="pt-d">${ic('flag','sm')}</span>
       <span><small>Finalizada no sistema ${relTempo(x.ps.fim)} · ${fmtDH(new Date(x.ps.fim))}</small><b>${esc(x.l.tag)} finalizada${x.o ? ` no ${esc(x.loc)} · ${esc(x.o.nome)}` : ''}</b><small>Programação da semana ${esc(x.l.sem.label)} · ${x.p.pct}% executado${x.p.nex ? ` · ${x.p.nex} não executada(s)` : ''}</small></span></button>`).join('')
@@ -3295,7 +3472,9 @@ function renderInf(){
     </div>`;
   const A = h => ({ art:true, html:h });
   const blocos = [
+    A(`<article class="art status-op"><button type="button" class="so-copy" data-copy-so title="Copiar relatório diário para WhatsApp" aria-label="Copiar relatório diário">${ic('copy')}</button><span class="kick bl">${ic('radio-tower','sm')}Status operacional</span><h3>Equipamentos e programações previstas</h3><p>${txtSO}</p><div class="so-legenda"><b>Legenda</b>${SO_LEG.map(([k,t])=>`<span>${soIcone(k)} ${t}</span>`).join('')}</div><div class="so-resumo">${soResumo}</div><div class="so-lista">${soLista}</div></article>`),
     A(`<article class="art"><span class="kick">${ic('mountain','sm')}Minas</span><h3>Programação por mina</h3><p>${txtMina}${txtMina2}${txtSem}</p><div class="mbars">${barras}</div></article>`),
+    A(`<article class="art ${G.hojeIni.some(x=>inicioHojeDe(x.l)?.atrasada)?'alert':''}"><span class="kick wr">${ic('calendar-clock','sm')}Inícios de hoje</span><h3>${G.hojeIni.length ? pl(G.hojeIni.length,'programação prevista para hoje','programações previstas para hoje') : 'Sem início previsto para hoje'}</h3><p>${G.hojeIni.length ? 'O tempo restante é atualizado a cada minuto. Após 30 minutos do horário previsto sem início, a programação passa a indicar atraso.' : 'Não há programações não iniciadas com início previsto para hoje.'}</p>${G.hojeIni.length ? `<ul class="tl-l b">${G.hojeIni.slice(0,10).map(x=>{const h=inicioHojeDe(x.l);return `<li><button class="lk2" data-sq="${esc(x.l.id)}"><b>${esc(x.l.tag)}</b> · ${esc(x.l.id)}${x.o?` · ${esc(x.mina)} · ${esc(x.o.nome)} · ${esc(x.loc)}`:' · sem alocação'} — ${h.atrasada?`<b>atraso de ${fmtDur(h.ms)}</b>`:`inicia em <b>${fmtDur(h.ms)}</b>`} (${fmtDH(x.l.ini)})</button></li>`;}).join('')}</ul>`:''}</article>`),
     A(`<article class="art"><span class="kick bl">${ic('activity','sm')}Execução</span><h3>${G.and.length ? pl(G.and.length,'programação em andamento','programações em andamento') : 'Execução em ritmo de espera'}</h3><div class="art-f">${ring}<p>${txtExec}</p></div></article>`),
     A(`<article class="art ${G.aguard.length ? 'seq' : ''}"><span class="kick bl">${ic('arrow-right-to-line','sm')}Sequência de manutenção</span><h3>${G.aguard.length ? pl(G.aguard.length,'programação aguardando etapa anterior','programações aguardando etapa anterior') : 'Sem programações encadeadas'}</h3><p>${txtSeq}</p>${seqL ? `<ul class="tl-l b">${seqL}</ul>` : ''}</article>`),
     A(`<article class="art ${G.omve.length ? 'safety' : ''}"><span class="kick sf">${ic('shield-alert','sm')}Segurança</span><h3>${G.omve.length ? pl(G.omve.length,'programação com OM vermelha','programações com OM vermelha') : 'Sem OM vermelha na semana'}</h3><p>${txtOMVE}</p>${omveL ? `<ul class="tl-l safety">${omveL}</ul>` : ''}</article>`),
@@ -3382,6 +3561,7 @@ function ligarConteudoInf(root){
   root.querySelectorAll('[data-k]').forEach(b => b.onclick = () => infDetalhe(b.dataset.k));
   root.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => abrirSequencia(b.dataset.sq));
   root.querySelectorAll('[data-of]').forEach(b => b.onclick = () => abrirInTime(b.dataset.of));
+  root.querySelectorAll('[data-copy-so]').forEach(b => b.onclick = e => { e.stopPropagation(); copiarStatusOperacional(); });
   icons();
 }
 document.addEventListener('keydown', e => {
@@ -3408,7 +3588,7 @@ function infDetalhe(k){
     p80:['Programações acima de 80% de execução','trending-up'], fin6:['Finalizadas nas últimas 6 horas','flag'],
     omve:['Programações com OM vermelha','shield-alert'], omveExec:['OM vermelha em execução','shield-alert'],
     cor:['Programações corretivas','siren'], aguard:['Aguardando finalização de etapa anterior','arrow-right-to-line'],
-    atras:['Início previsto ultrapassado (não iniciadas)','alarm-clock'], prox24:['Iniciam nas próximas 24 horas','clock'], corAdd:['Programações com atividades corretivas','siren'],
+    hojeIni:['Programadas para iniciar hoje','calendar-clock'], atras:['Início previsto ultrapassado (não iniciadas)','alarm-clock'], prox24:['Iniciam nas próximas 24 horas','clock'], corAdd:['Programações com atividades corretivas','siren'],
     prox:[`Programações da semana ${D.prox.label}`,'calendar-arrow-up'], proxSem:[`Sem alocação · semana ${D.prox.label}`,'map-pin-off'], proxCor:[`Corretivas · semana ${D.prox.label}`,'siren'],
     equip:['Equipamentos programados','truck'], of100:['Oficinas 100% ocupadas','circle-gauge'], oflivre:['Oficinas livres','door-open'], boxlivre:['BOX e pátios livres','warehouse']
   };
@@ -3468,7 +3648,7 @@ const SHAPE = {
                         iniciada_em:tsN(r.iniciada_em), finalizada_em:tsN(r.finalizada_em), reaberta_em:tsN(r.reaberta_em), seguir_com:r.seguir_com || null, importado_por:r.importado_por || null,
                         lote_import:r.lote_import || null, lote_import_em:tsN(r.lote_import_em), lote_arquivo:r.lote_arquivo || null }),
   atividades:   r => ({ id:r.id, programacao_id:r.programacao_id, tag:r.tag, ordem:r.ordem, atividade:r.atividade, inicio:tsN(r.inicio), fim:tsN(r.fim),
-                        corretiva:!!r.corretiva, omve:!!r.omve, origem:r.origem || 'importacao', status:r.status || null, motivo:r.motivo || null, status_em:tsN(r.status_em) }),
+                        corretiva:!!r.corretiva, omve:!!r.omve, cen_trab_operacao:r.cen_trab_operacao || null, recursos:r.recursos || null, origem:r.origem || 'importacao', status:r.status || null, motivo:r.motivo || null, status_em:tsN(r.status_em) }),
   alocacoes:    r => ({ programacao_id:r.programacao_id, oficina_id:r.oficina_id, local:r.local })
 };
 const sj = (t, r) => JSON.stringify(SHAPE[t](r));
@@ -3503,6 +3683,8 @@ function montarDeRaw(){
     if(p.corretiva) d.Tipo = 'COR';
     if(a.corretiva) d.CorAdd = true;
     if(a.omve) d.OMVE = true;
+    if(a.cen_trab_operacao) d.CenTrab = a.cen_trab_operacao;
+    if(a.recursos) d.Recursos = a.recursos;
     if(a.origem === 'app') d.CriadoEm = a.created_at || new Date().toISOString();
     if(a.status) ST[stKey(d)] = { st:a.status, obs:a.motivo || '', em:a.status_em || a.updated_at };
     return d;
@@ -3584,7 +3766,7 @@ function linhasAtuais(){
     }),
     atividades: dados.map(d => { const s = ST[stKey(d)];
       return { id:d._id, programacao_id:d.Lote, tag:d.TAG, ordem:d.Ordem, atividade:d.Atividade,
-        inicio:tsN(d.Inicio), fim:tsN(d.Fim), corretiva:!!d.CorAdd, omve:!!d.OMVE, origem:d.CriadoEm ? 'app' : 'importacao',
+        inicio:tsN(d.Inicio), fim:tsN(d.Fim), corretiva:!!d.CorAdd, omve:!!d.OMVE, cen_trab_operacao:d.CenTrab || null, recursos:d.Recursos || null, origem:d.CriadoEm ? 'app' : 'importacao',
         status:s ? s.st : null, motivo:s ? (s.obs || null) : null, status_em:s ? tsN(s.em) : null }; }),
     alocacoes: Object.entries(ALOC).filter(([k,a]) => lotes.has(k) && ofIds.has(a.of)).map(([k,a]) => ({ programacao_id:k, oficina_id:a.of, local:a.loc }))
   };
@@ -3676,7 +3858,7 @@ document.addEventListener('visibilitychange', () => {
 });
 function atualizarTela(){
   menuLater();
-  if(tela === 'inf') renderInf(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs(); else renderOfi();
+  if(tela === 'inf') renderInf(); else if(tela === 'ops') renderOps(); else if(tela === 'rep') renderReport(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs(); else renderOfi();
 }
 /* ---------- primeira carga + envio dos dados locais existentes ---------- */
 async function sbIniciar(){
@@ -3691,6 +3873,7 @@ async function sbIniciar(){
   const locais = { dados:dados.slice(), OFI:OFI.slice(), ALOC:{...ALOC}, ST:{...ST}, PS:{...PS}, SEG:{...SEG} };
   await perfisCarregar(); perfisRealtime();
   await exmCarregar(); exmRealtime();
+  await repBanco();
   if(!await sbCarregar()) return;
   const bancoVazio = !OFI.length && !dados.length;
   if(bancoVazio && (locais.dados.length || locais.OFI.length)){
@@ -3713,6 +3896,8 @@ async function sbIniciar(){
 /* ================= NAVEGAÇÃO / MENU LATERAL ================= */
 const TELAS = [
   { id:'inf',  sigla:'INF', icon:'newspaper', nome:'Informativo', desc:'Notícias e destaques', sub:'Panorama da programação, execução e ocupação das oficinas', sec:'Visão geral' },
+  { id:'ops',  sigla:'OPS', icon:'radio-tower', nome:'Status Operacional', desc:'Último evento por equipamento', sub:'Cache operacional · evento mais recente de cada equipamento', sec:'Visão geral' },
+  { id:'rep',  sigla:'RPT', icon:'clipboard-pen-line', nome:'Report', desc:'Registro dos técnicos', sub:'Report diário por equipamento · Motivo · Previsão', sec:'Visão geral', executor:true },
   { id:'prog', sigla:'PRG', icon:'calendar-range', nome:'Programação', desc:'Importar e sequenciar',     sub:'Programação por TAG · Semana (seg–dom) · Sequência', sec:'Planejamento' },
   { id:'int',  sigla:'INT', icon:'timer',          nome:'IN TIME',     desc:'Alocação em BOX e pátio',   sub:'Atribuição das programações aos BOX e pátios',        sec:'Planejamento' },
   { id:'min',  sigla:'MIN', icon:'mountain',       nome:'Minas',       desc:'Cadastro de minas',         sub:'Dimensão de minas · Ordem · Situação',                sec:'Cadastros', adm:true },
@@ -3728,7 +3913,7 @@ function montarMenu(){
   let sec = '', h = '';
   const semHoje = semanaDe(new Date()).label;
   const cnt = { prog:LOTES.filter(l => l.sem.label === semHoje).length, int:LOTES.filter(l => psDe(l.id)?.st === 'ex').length, ofi:OFI.length, min:MINAS_DB.length, acs:USERS.filter(u => u.perfil === 'executor').length, cfg:0 };
-  TELAS.filter(t => !t.adm || ehADM()).forEach(t => {
+  TELAS.filter(t => (!t.adm || ehADM()) && (!t.executor || ['executor','adm'].includes(meuPerfil()))).forEach(t => {
     if(t.sec !== sec){ sec = t.sec; h += `<div class="sb-sec"><span>${esc(sec)}</span></div>`; }
     const n = cnt[t.id];
     h += `<button class="sb-it ${t.id===tela?'active':''}" data-s="${t.id}" title="${esc(t.nome)}">
@@ -3760,13 +3945,14 @@ matchMedia('(max-width:900px)').addEventListener('change', () => { if(side.class
 
 function trocarTela(s){
   if(TELAS.find(t => t.id === s)?.adm && !ehADM()) s = 'inf';
+  if(TELAS.find(t => t.id === s)?.executor && !['executor','adm'].includes(meuPerfil())) s = 'inf';
   tela = s;
   const T = TELAS.find(t => t.id === s);
   $('hTit').textContent = T.nome; $('hSub').textContent = T.sub; $('hIcon').innerHTML = ic(T.icon);
-  $('scrInf').hidden = s !== 'inf'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs';
-  $('hActInf').hidden = s !== 'inf'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs';
+  $('scrInf').hidden = s !== 'inf'; $('scrOps').hidden = s !== 'ops'; $('scrRep').hidden = s !== 'rep'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs';
+  $('hActInf').hidden = s !== 'inf'; $('hActOps').hidden = s !== 'ops'; $('hActRep').hidden = s !== 'rep'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs';
   try{ localStorage.setItem('importador_tela', s); }catch(e){}
-  if(s === 'inf') renderInf(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else renderOfi();
+  if(s === 'inf') renderInf(); else if(s === 'ops') renderOps(); else if(s === 'rep') renderReport(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else renderOfi();
   montarMenu();
 }
 
@@ -4147,7 +4333,7 @@ function abrirLotesImp(){
     if(podeAgirLote(id) || !$('modal').classList.contains('show')) return;
     const mb = $('mBody');
     mb.querySelectorAll('.sact,.mform,.lock').forEach(x => x.remove());
-    ['psIni','psFin','psReab','sqCor','sqAll'].forEach(k => $(k)?.remove());
+    ['psIni','psFin','psReab','sqTransf','sqCor','sqAll'].forEach(k => $(k)?.remove());
     const sp = $('sqSeg'); if(sp){ sp.querySelectorAll('button').forEach(b => b.disabled = true); sp.style.pointerEvents = 'none'; sp.style.opacity = .7; }
     const ban = document.createElement('div'); ban.className = 'ro-ban sq';
     ban.innerHTML = `${ic('eye','sm')}<span>${motivoRO(id)}</span>`;
@@ -4212,7 +4398,7 @@ async function exportarInfHtml(){
     coletar(wk);
     const capturar = () => {
       const w2 = svgs($('mBody').innerHTML);
-      w2.querySelectorAll('.sact,.mform,.lock,.ro-ban,#psIni,#psFin,#psReab,#sqCor,#sqAll,.pstat .r,.sp-x,.sp-pop').forEach(x => x.remove());
+      w2.querySelectorAll('.sact,.mform,.lock,.ro-ban,#psIni,#psFin,#psReab,#sqTransf,#sqCor,#sqAll,.pstat .r,.sp-x,.sp-pop').forEach(x => x.remove());
       w2.querySelectorAll('.sp-btn').forEach(b => { b.disabled = true; b.querySelectorAll('.chev').forEach(c => c.remove()); });
       const r = { tit:$('mTit').textContent, ic:$('mIc').innerHTML, tam:['lg','md','xl'].find(c => $('mBox').classList.contains(c)) || '', body:w2.innerHTML };
       $('modal').classList.remove('show');
@@ -4343,5 +4529,193 @@ ${tpls}
 /* inicia a conexão só depois que todas as regras de permissão estão carregadas */
 sbIniciar();
 </script>
+<style>
+
+
+/* transferência moderna de BOX na sequência */
+.tr-atual{display:flex;align-items:center;gap:10px;background:var(--pri-soft);border:1px solid var(--pri-soft2);border-radius:12px;padding:10px 12px;margin-bottom:12px;color:var(--pri-dark)}.tr-atual span{display:flex;flex-direction:column}.tr-atual small{font-size:10.5px;color:var(--muted);text-transform:uppercase}.tr-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tr-col{min-width:0}.tr-col>label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px}.tr-list{margin-top:7px;max-height:330px;overflow:auto;display:flex;flex-direction:column;gap:4px;border:1px solid var(--border);border-radius:12px;padding:6px}.tr-opt{width:100%;display:flex;align-items:center;gap:9px;border:1px solid transparent;background:#fff;border-radius:9px;padding:8px;text-align:left}.tr-opt:hover{background:var(--pri-soft)}.tr-opt.on{background:var(--pri-soft);border-color:var(--pri)}.tr-opt>span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column}.tr-opt b{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tr-opt small{font-size:11px;color:var(--muted)}.tr-ic{width:30px;height:30px;border-radius:8px;background:var(--pri-soft2);color:var(--pri);display:grid;place-items:center;flex-shrink:0}#trErr{color:var(--err);font-size:12px;margin-top:9px}@media(max-width:680px){.tr-grid{grid-template-columns:1fr}.tr-list{max-height:220px}}
+/* seletor moderno de TAG HMC no modal Corretiva */
+.cor-tag-dd{position:relative}.cor-tag-btn{width:100%;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 8px;border:1px solid var(--border);border-radius:12px;background:#fff;text-align:left}.cor-tag-btn:hover,.cor-tag-dd.open .cor-tag-btn{border-color:var(--err)}.cor-tag-dd.open .cor-tag-btn{box-shadow:0 0 0 4px rgba(220,53,69,.15)}.cor-tag-ic{width:38px;height:38px;border-radius:10px;background:var(--err-soft);color:var(--err);display:grid;place-items:center}.cor-tag-tx{flex:1;min-width:0;display:flex;flex-direction:column}.cor-tag-tx b{font-size:13.5px}.cor-tag-tx small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cor-tag-pop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--sh-lg);padding:8px}.cor-tag-list{max-height:280px;overflow:auto;display:flex;flex-direction:column;gap:3px;margin-top:7px}.cor-tag-opt{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:9px;border-radius:10px;text-align:left}.cor-tag-opt:hover,.cor-tag-opt.on{background:var(--err-soft)}.cor-tag-code{min-width:78px;font:700 12px ui-monospace,Consolas,monospace;color:var(--err)}.cor-tag-opt>span:nth-child(2){flex:1;display:flex;min-width:0;flex-direction:column}.cor-tag-opt b{font-size:12.5px}.cor-tag-opt small{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.so-resumo,.so-eqs{display:flex;flex-wrap:wrap;gap:6px}.so-s,.so-eq{border:1px solid var(--border);border-radius:9px;padding:5px 8px}.so-s.operando,.so-eq.operando{background:#e7f6ec;color:var(--ok)}.so-s.corretiva,.so-s.acidente,.so-eq.corretiva,.so-eq.acidente{background:var(--err-soft);color:var(--err)}.so-s.sistematica,.so-eq.sistematica{background:var(--blue-soft);color:var(--blue)}.so-s.manutencao,.so-s.nao_sistematica,.so-eq.manutencao,.so-eq.nao_sistematica{background:var(--warn-soft);color:var(--warn)}.so-mina{border:1px solid var(--border);border-radius:10px;padding:8px;margin-top:8px}.so-mina summary{display:flex;justify-content:space-between}.so-frota{padding:8px}.so-eq{display:flex;flex-direction:column}.so-eq i{font-size:10px;font-style:normal}
+/* Informativo · Status operacional em lista com programacao */
+.so-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.so-row{border:1px solid var(--border);border-radius:12px;background:#fbfdfd;padding:10px;display:grid;grid-template-columns:minmax(190px,260px) 1fr;gap:12px;align-items:start}.so-row.has-prog{background:#fff;border-color:#cdd8fb}.so-atual{display:flex;align-items:center;gap:8px;min-width:0}.so-eq-id{display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:1}.so-eq-id b{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--pri-dark)}.so-eq-id small{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.so-programacoes{display:flex;flex-direction:column;gap:6px;min-width:0}.so-prog{width:100%;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;text-align:left;transition:.15s;color:var(--txt)}.so-prog:hover{border-color:var(--pri);background:var(--pri-soft);box-shadow:var(--sh)}.so-prog-top{display:flex;align-items:center;gap:7px;min-width:0;margin-bottom:7px}.so-prog-top .code{flex:1;overflow:hidden;text-overflow:ellipsis}.so-prog-top>svg{color:var(--muted)}.so-prog-grid{display:grid;grid-template-columns:90px 80px minmax(135px,1fr) minmax(135px,1fr);gap:6px}.so-prog-grid>span{display:flex;flex-direction:column;background:#f7fafa;border-radius:7px;padding:5px 7px;min-width:0}.so-prog-grid small{font-size:10px;color:var(--muted)}.so-prog-grid b{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.so-prog-grid .wide{grid-column:1/-1}.so-sem-prog{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;padding:5px 2px}@media(max-width:900px){.so-row{grid-template-columns:1fr}.so-prog-grid{grid-template-columns:1fr 1fr}}@media(max-width:480px){.so-prog-grid{grid-template-columns:1fr}.so-prog-grid .wide{grid-column:auto}.so-atual{align-items:flex-start;flex-wrap:wrap}}
+
+/* ===== REPORT DOS TÉCNICOS ===== */
+.rep-list{padding:12px;display:flex;flex-direction:column;gap:8px;overflow:auto}.rep-card{display:grid;grid-template-columns:minmax(130px,190px) 1fr auto;gap:12px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:11px 13px;background:#fff}.rep-eq{font:800 14px ui-monospace,Consolas,monospace;color:var(--pri-dark)}.rep-main{min-width:0}.rep-main b{display:block;font-size:13px}.rep-main small{display:flex;gap:9px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:4px}.rep-prev{white-space:nowrap}.rep-prev.sem{color:var(--warn)}.rep-actions{display:flex;gap:5px}.rep-form{display:flex;flex-direction:column;gap:14px}.rep-dd{position:relative}.rep-dd-btn{width:100%;display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:#fff;border-radius:11px;padding:9px;text-align:left}.rep-dd-btn .tx{flex:1;display:flex;flex-direction:column}.rep-dd-btn small{color:var(--muted)}.rep-dd-pop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;background:#fff;border:1px solid var(--border);border-radius:13px;box-shadow:var(--sh-lg);padding:8px}.rep-dd-list{max-height:280px;overflow:auto}.rep-dd-opt{width:100%;display:flex;gap:9px;align-items:center;border:0;background:transparent;padding:8px;border-radius:9px;text-align:left}.rep-dd-opt:hover,.rep-dd-opt.on{background:var(--pri-soft)}.rep-dd-opt span{display:flex;flex-direction:column}.rep-dd-opt small{color:var(--muted)}.rep-text{width:100%;min-height:100px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;resize:vertical}.rep-date{padding:10px 12px;border:1px solid var(--border);border-radius:10px}.rep-status{display:inline-flex;gap:5px;align-items:center;background:#fff4e5;color:#b45309;border:1px solid #f6dfae;border-radius:7px;padding:3px 7px;font-size:11px;font-weight:700}.so-report{margin-top:6px;background:#fff8e6;border:1px solid #f6dfae;border-radius:8px;padding:7px 9px;font-size:11px;color:#694c13}.so-report b{display:block;color:#8a5a00}.so-report small{display:block;color:var(--muted);margin-top:3px}@media(max-width:680px){.rep-card{grid-template-columns:1fr}.rep-actions{justify-content:flex-end}}
+/* ===== STATUS OPERACIONAL ===== */
+.ops-cache{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);padding:11px 14px;margin-bottom:14px;color:var(--muted);font-size:12.5px}
+.ops-cache .dot{width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px #e7f6ec}.ops-cache.warn .dot{background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}.ops-cache.err .dot{background:var(--err);box-shadow:0 0 0 4px var(--err-soft)}
+.ops-cache b{color:var(--txt)}.ops-cache .right{margin-left:auto}.ops-tools .ops-select{min-width:220px}#opsTable{min-width:1500px}.ops-select select:focus{border-color:var(--pri);box-shadow:0 0 0 4px var(--pri-ring)}
+.ops-eq{font-family:ui-monospace,Consolas,monospace;font-weight:800;color:var(--pri-dark)}.ops-detail{max-width:420px;white-space:normal;color:var(--muted);font-size:12px;line-height:1.4}.ops-status{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:20px;background:#eef2f2;color:#56706e;font-size:11px;font-weight:700}.ops-status.ok{background:#e7f6ec;color:var(--ok)}.ops-status.wr{background:var(--warn-soft);color:var(--warn)}.ops-status.er{background:var(--err-soft);color:var(--err)}
+@media(max-width:680px){.ops-cache .right{margin-left:0;width:100%}.ops-tools .ops-select{width:100%}.ops-tools .ops-select select{width:100%}}
+
+/* ===== Status operacional · cascata, legenda e cópia ===== */
+.status-op{position:relative}.status-op>h3{padding-right:48px}
+.so-copy{position:absolute;right:0;top:16px;width:36px;height:36px;border:1px solid #cdd8fb;border-radius:10px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;z-index:2;transition:.15s}
+.so-copy:hover{background:var(--blue);color:#fff;transform:translateY(-1px);box-shadow:var(--sh)}
+.so-legenda{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;background:#f7fafa;border:1px solid var(--border);border-radius:10px;font-size:11.5px}
+.so-legenda>b{color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-size:10.5px;margin-right:2px}
+.so-legenda>span{white-space:nowrap;background:#fff;border:1px solid var(--border);border-radius:8px;padding:3px 8px}
+.so-s.acidente,.so-eq.acidente{background:#fff1e6!important;color:#c2410c!important;border-color:#fdba74!important}
+.so-s.corretiva{background:var(--err-soft)!important;color:var(--err)!important}
+.so-lista{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.so-mina-grp{border:1px solid var(--border);border-radius:13px;overflow:hidden;background:#fff}
+.so-mina-grp>summary{display:flex;align-items:center;gap:7px;padding:10px 12px;background:#f3f8f8;cursor:pointer;color:var(--pri-dark);list-style:none}
+.so-mina-grp>summary::-webkit-details-marker{display:none}
+.so-mina-grp>summary>span{margin-left:auto;color:var(--muted);font-size:11px;font-weight:600}
+.so-frota-grp{padding:10px 12px}.so-frota-grp+.so-frota-grp{border-top:1px dashed var(--border)}
+.so-frota-grp h5{display:flex;align-items:center;gap:6px;margin:0 0 8px;color:var(--blue);font-size:12.5px}
+.so-frota-grp h5 span{margin-left:auto;background:var(--blue-soft);padding:2px 8px;border-radius:10px;font-size:10.5px}
+.so-equip-list{display:flex;flex-direction:column;gap:6px}
+.so-row{display:flex!important;flex-direction:column;gap:7px;border:1px solid var(--border);border-radius:10px;background:#fbfdfd;padding:8px 10px;grid-template-columns:none!important}
+.so-row.has-prog{background:#fff;border-color:#cdd8fb}
+.so-head{display:flex;align-items:center;gap:8px;min-width:0}
+.so-dot{font-size:13px;line-height:1;flex-shrink:0}
+.so-tag{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--pri-dark);flex:0 0 auto;white-space:nowrap}
+.so-head .so-s{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:700;white-space:nowrap;padding:3px 9px}
+.so-report{margin:0;width:100%}
+.so-programacoes{display:flex;flex-direction:column;gap:6px;min-width:0}
+/* Report · espaçamento TAG x hora e duplo clique */
+.rep-card{cursor:default;user-select:none}.rep-card:hover{border-color:var(--pri);background:var(--pri-soft)}
+.rep-id{display:flex;flex-direction:column;gap:5px;min-width:0}
+.rep-id small{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:11.5px}
+
+.ct-chips{display:flex;gap:5px;flex-wrap:wrap}.ct-chip{display:inline-flex;align-items:center;gap:4px;background:#f3eefe;color:#6d28d9;border:1px solid #e2d6fb;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:600}.ct-ln{display:flex!important;gap:10px;flex-wrap:wrap}.ct-ln span,.tl .bx small span{display:inline-flex;align-items:center;gap:4px}
+</style>
+<script>
+/* ===== REPORT DOS TÉCNICOS ===== */
+const REP_KEY='intime_reports_v1'; let REPORTS=[];
+function repCarregar(){try{REPORTS=JSON.parse(localStorage.getItem(REP_KEY)||'[]')||[]}catch(e){REPORTS=[]}}
+const repRow=r=>({id:r.id,equipamento:r.equip,motivo:r.motivo,tem_previsao:!!r.temPrev,previsao:r.temPrev?r.previsao:null,autor:r.autor||null,autor_id:r.autorId||null,created_at:r.created||new Date().toISOString()});
+function repLocal(){try{localStorage.setItem(REP_KEY,JSON.stringify(REPORTS))}catch(e){}}
+async function repGravar(r){repLocal();if(!sb)return;const {error}=await sb.from('reports').upsert(repRow(r),{onConflict:'id'});if(error){console.error('reports:',error);toast('Report salvo só neste navegador: '+error.message,'er');}}
+async function repExcluirBanco(id){repLocal();if(!sb)return;const {error}=await sb.from('reports').delete().eq('id',id);if(error){console.error('reports:',error);toast('Falha ao excluir no banco: '+error.message,'er');}}
+async function repBanco(){if(!sb)return;try{const {data,error}=await sb.from('reports').select('*').order('created_at',{ascending:false});if(error)throw error;REPORTS=(data||[]).map(r=>({id:r.id,equip:r.equipamento,motivo:r.motivo,temPrev:!!r.tem_previsao,previsao:r.previsao,autor:r.autor,autorId:r.autor_id,created:r.created_at}));repLocal()}catch(e){console.warn('Tabela reports indisponível; usando cache local.',e.message)}}
+const repPodeEditar=r=>ehADM()||(!!EU?.id&&r.autorId===EU.id);
+const repEquipamentos=()=>[...new Map((opsRows||[]).map(r=>{const eq=String(r.equipamento||r.TAG_Relacao||'').trim();return[eq,{eq,mina:r.MINA_Relacao||'',frota:r.FROTA_Relacao||'',modelo:r.MODELO_Relacao||''}]}).filter(([k])=>k)).values()].sort((a,b)=>cmpTxt(a.eq,b.eq));
+function renderReport(){
+  const el=$('repList');if(!el)return;
+  const q=norm($('repQ')?.value||''),L=[...REPORTS].sort((a,b)=>String(b.created).localeCompare(String(a.created))).filter(r=>!q||norm(`${r.equip} ${r.motivo} ${r.autor}`).includes(q));
+  $('repRes').textContent=`${L.length} de ${REPORTS.length} report(s) · duplo clique na linha para editar`;
+  $('repKpis').innerHTML=`<div class="kpi"><div class="ki">${ic('clipboard-pen-line')}</div><div><span>Reports</span><strong>${REPORTS.length}</strong></div></div><div class="kpi"><div class="ki">${ic('truck')}</div><div><span>Equipamentos</span><strong>${new Set(REPORTS.map(r=>r.equip)).size}</strong></div></div><div class="kpi warn"><div class="ki">${ic('calendar-x')}</div><div><span>Sem previsão</span><strong>${REPORTS.filter(r=>!r.temPrev).length}</strong></div></div>`;
+  el.innerHTML=L.length?L.map(r=>`<div class="rep-card" data-rid="${esc(r.id)}" title="Duplo clique para editar"><div class="rep-id"><span class="rep-eq">${esc(r.equip)}</span><small>${ic('clock','sm')}${r.created?fmtDH(new Date(r.created)):''}</small></div><div class="rep-main"><b>${esc(r.motivo)}</b><small><span>${ic('user','sm')}${esc(r.autor||'Técnico')}</span><span class="rep-prev ${r.temPrev?'':'sem'}">${ic(r.temPrev?'calendar-clock':'calendar-x','sm')}${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'}</span></small></div><div class="rep-actions">${repPodeEditar(r)?`<button class="btn icon sm" data-red="${esc(r.id)}" title="Editar">${ic('pencil','sm')}</button><button class="btn icon sm danger" data-rdel="${esc(r.id)}" title="Excluir">${ic('trash-2','sm')}</button>`:''}</div></div>`).join(''):`<div class="empty"><div class="eic">${ic('clipboard-pen-line')}</div><b>Nenhum report registrado</b>Use Adicionar report para registrar uma ocorrência.</div>`;
+  el.querySelectorAll('[data-rid]').forEach(c=>c.ondblclick=e=>{if(e.target.closest('button'))return;formReport(c.dataset.rid)});
+  el.querySelectorAll('[data-red]').forEach(b=>b.onclick=()=>formReport(b.dataset.red));
+  el.querySelectorAll('[data-rdel]').forEach(b=>b.onclick=()=>{const r=REPORTS.find(x=>x.id===b.dataset.rdel);if(!r)return;
+    abrirModal('Excluir report','trash-2',`<p>Excluir o report de <b>${esc(r.equip)}</b>?</p><p style="margin-top:6px;color:var(--muted)">${esc(r.motivo)}</p>`,`<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn red" id="repDelOk">${ic('trash-2')}Excluir</button>`);
+    $('repDelOk').onclick=()=>{REPORTS=REPORTS.filter(x=>x.id!==r.id);repExcluirBanco(r.id);fecharModal();renderReport();toast('Report excluído','ok')};});
+  icons();
+}
+const dtLocalRep=iso=>{const d=new Date(iso);return isNaN(d)?'':`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`};
+async function formReport(id){
+  if(typeof id!=='string') id=null;
+  if(!opsRows.length&&!opsLoading){toast('Carregando equipamentos do Status Operacional…');await opsCarregar(false);}
+  if(!opsRows.length&&!id){toast('Não foi possível carregar a lista de equipamentos do Status Operacional','er');}
+  const ed=id?REPORTS.find(r=>r.id===id):null;
+  if(id&&!ed)return;
+  if(ed&&!repPodeEditar(ed)){toast('Somente o autor ou o ADM pode editar este report','er');return;}
+  const eqs=repEquipamentos();let sel=ed?ed.equip:'',tem=ed?!!ed.temPrev:false;
+  if(sel&&!eqs.some(x=>x.eq===sel))eqs.unshift({eq:sel,mina:'',frota:'',modelo:''});
+  const meta=x=>[x?.mina,x?.frota,x?.modelo].filter(Boolean).join(' · ');
+  abrirModal(ed?'Editar report':'Adicionar report',ed?'pencil':'clipboard-pen-line',`<div class="rep-form">
+    <div class="f"><b>Equipamento *</b><div class="rep-dd" id="repDd"><button type="button" class="rep-dd-btn" id="repDdBtn"><span class="tx"><b id="repEqVal">${sel?esc(sel):'Selecione um equipamento'}</b><small id="repEqMeta">${sel?esc(meta(eqs.find(x=>x.eq===sel))||'Equipamento selecionado'):'Lista do Status Operacional'}</small></span>${ic('chevron-down','sm')}</button><div class="rep-dd-pop" id="repDdPop" hidden><div class="input">${ic('search')}<input id="repDdQ" placeholder="Buscar equipamento, mina, frota ou modelo..."></div><div class="rep-dd-list" id="repDdList"></div></div></div></div>
+    <label class="f"><b>Motivo *</b><textarea class="rep-text" id="repMot" maxlength="500" placeholder="Descreva o motivo do report...">${ed?esc(ed.motivo):''}</textarea></label>
+    <label class="switch"><input id="repTem" type="checkbox" ${tem?'checked':''}><span class="tr"></span>Possui previsão</label>
+    <label class="f" id="repPrevBox" ${tem?'':'hidden'}><b>Data e hora previstas *</b><input class="rep-date" id="repPrev" type="datetime-local" value="${ed&&ed.temPrev&&ed.previsao?dtLocalRep(ed.previsao):''}"></label>
+    ${ed?`<small style="color:var(--muted)">${ic('user','sm')} Registrado por ${esc(ed.autor||'Técnico')} em ${ed.created?fmtDH(new Date(ed.created)):''}</small>`:''}
+    <div class="auth-msg" id="repErr"></div></div>`,
+    `<button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn solid" id="repSave">${ic('save')}${ed?'Salvar alterações':'Salvar report'}</button>`,'md');
+  const draw=()=>{const q=norm($('repDdQ')?.value||''),L=eqs.filter(x=>!q||norm(`${x.eq} ${x.mina} ${x.frota} ${x.modelo}`).includes(q));$('repDdList').innerHTML=L.length?L.map(x=>`<button type="button" class="rep-dd-opt ${x.eq===sel?'on':''}" data-eq="${esc(x.eq)}"><b>${esc(x.eq)}</b><span><small>${esc(meta(x))}</small></span></button>`).join(''):'<div class="ms-empty">Nenhum equipamento encontrado.</div>';icons()};
+  $('repDdBtn').onclick=()=>{const p=$('repDdPop');p.hidden=!p.hidden;if(!p.hidden){draw();setTimeout(()=>$('repDdQ').focus(),20)}};
+  $('repDdQ').oninput=draw;
+  $('repDdList').onclick=e=>{const b=e.target.closest('[data-eq]');if(!b)return;sel=b.dataset.eq;$('repEqVal').textContent=sel;$('repEqMeta').textContent=meta(eqs.find(v=>v.eq===sel));$('repDdPop').hidden=true};
+  $('repTem').onchange=e=>{tem=e.target.checked;$('repPrevBox').hidden=!tem};
+  $('repSave').onclick=()=>{ try{
+    const motivo=$('repMot').value.trim(),prev=$('repPrev').value;
+    if(!sel||motivo.length<3||(tem&&!prev)){$('repErr').className='auth-msg er';$('repErr').textContent=!sel?'Selecione o equipamento.':motivo.length<3?'Descreva o motivo.':'Informe a data e hora da previsão.';return}
+    let r;
+    if(ed){r=ed;Object.assign(r,{equip:sel,motivo,temPrev:tem,previsao:tem?new Date(prev).toISOString():null});}
+    else{r={id:novoId(),equip:sel,motivo,temPrev:tem,previsao:tem?new Date(prev).toISOString():null,autor:(USERS.find(u=>u.id===EU?.id)?.nome)||EU?.nome||'Técnico',autorId:EU?.id||null,created:new Date().toISOString()};REPORTS.unshift(r);}
+    repGravar(r);fecharModal();renderReport();toast(ed?'Report atualizado':'Report registrado','ok');
+  }catch(e){console.error(e);$('repErr').className='auth-msg er';$('repErr').textContent='Erro ao salvar: '+(e.message||e);} };
+}
+/* ===== STATUS OPERACIONAL · cache Supabase externo (somente leitura) ===== */
+const OPS_SB_URL='https://egsziutmtktjmreaduhv.supabase.co';
+const OPS_SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnc3ppdXRtdGt0am1yZWFkdWh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTQwNzgsImV4cCI6MjA5NTg5MDA3OH0.hvel2EauvzH9SLYdxjqEbwWk-SdwxBwkos-EOQhkElU';
+let opsSb=null,opsCache=null,opsRows=[],opsTimer=null,opsLoading=false;
+const opsNames={
+ eq:['equipamento','TAG_Relacao'], evento:['razao_descricao'], status:['categoria_tempo'],
+ ini:['data_inicial'], fim:['data_final'], local:['MINA_Relacao']
+};
+function opsKey(o,names){const ks=Object.keys(o||{});for(const n of names){const k=ks.find(x=>norm(x).replace(/[^a-z0-9]/g,'')===norm(n).replace(/[^a-z0-9]/g,''));if(k!=null&&o[k]!=null&&String(o[k]).trim()!=='')return o[k];}return null;}
+function opsDate(v){if(v==null||v==='')return null;if(typeof v==='number'){const d=new Date(v<1e12?v*1000:v);return isNaN(d)?null:d;}const d=new Date(v);return isNaN(d)?null:d;}
+function opsFmt(v){const d=v instanceof Date?v:opsDate(v);if(!d)return '—';return new Intl.DateTimeFormat('pt-BR',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d);}
+function opsRel(v){const d=opsDate(v);if(!d)return 'sem horário';const m=Math.max(0,Math.floor((Date.now()-d)/60000));if(m<1)return 'agora';if(m<60)return `há ${m} min`;const h=Math.floor(m/60);if(h<24)return `há ${h} h`;return `há ${Math.floor(h/24)} d`;}
+function opsEventoDe(r){return String(r.razao_descricao||'—');}
+function opsEquipDe(r){return String(r.equipamento||r.TAG_Relacao||'').trim();}
+function opsMomento(r){return opsDate(r.data_final)||opsDate(r.data_inicial);}
+function opsUltimos(rows){const m=new Map();rows.forEach((r,i)=>{const eq=opsEquipDe(r);if(!eq)return;const k=norm(eq),d=opsMomento(r)?.getTime()||0,a=m.get(k),ad=a?opsMomento(a.r)?.getTime()||0:-1;if(!a||d>ad||(d===ad&&i>a.i))m.set(k,{r,i});});return [...m.values()].map(x=>x.r).sort((a,b)=>(opsMomento(b)?.getTime()||0)-(opsMomento(a)?.getTime()||0));}
+function opsStatusClass(v){const x=norm(v);if(/operando|disponivel|normal|ativo|concluid/.test(x))return'ok';if(/parad|alert|aguard|manut|atras/.test(x))return'wr';if(/falha|indispon|bloque|crit|erro/.test(x))return'er';return'';}
+function opsDetalhe(r){const usados=new Set([...opsNames.eq,...opsNames.evento,...opsNames.status,...opsNames.ini,...opsNames.fim,...opsNames.local].map(x=>norm(x).replace(/[^a-z0-9]/g,'')));return Object.entries(r||{}).filter(([k,v])=>v!=null&&String(v).trim()!==''&&!usados.has(norm(k).replace(/[^a-z0-9]/g,''))).slice(0,4).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join(' · ')||'—';}
+async function opsCarregar(manual=false){
+ if(opsLoading)return;opsLoading=true;const b=$('opsRefresh');if(b){b.disabled=true;b.innerHTML=`${ic('loader-circle','spin')}Atualizando…`;}
+ try{
+  if(!window.supabase)throw new Error('Biblioteca Supabase não carregada.');
+  if(!opsSb)opsSb=window.supabase.createClient(OPS_SB_URL,OPS_SB_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const {data,error}=await opsSb.from('cache_apontamentos_api').select('chave_cache,id_localidade,data_inicio,data_fim,qtd_registros,dados_json,atualizado_em').order('atualizado_em',{ascending:false}).limit(1).maybeSingle();
+  if(error)throw error;if(!data)throw new Error('Cache apontamentos_atual não encontrado.');
+  opsCache=data;
+  function localizarRegistrosJson(valor){
+    if(typeof valor==='string'){try{valor=JSON.parse(valor)}catch(e){return []}}
+    if(Array.isArray(valor)){
+      if(valor.some(x=>x&&typeof x==='object'&&('equipamento' in x||'TAG_Relacao' in x||'id_apontamento' in x)))return valor;
+      for(const item of valor){const achou=localizarRegistrosJson(item);if(achou.length)return achou}
+      return valor;
+    }
+    if(valor&&typeof valor==='object'){
+      if('equipamento' in valor||'TAG_Relacao' in valor||'id_apontamento' in valor)return [valor];
+      for(const item of Object.values(valor)){const achou=localizarRegistrosJson(item);if(achou.length)return achou}
+    }
+    return [];
+  }
+  const raw=localizarRegistrosJson(data.dados_json);
+  opsCache._jsonEncontrados=raw.length;
+  opsRows=opsUltimos(raw);renderOps();if(manual)toast('Status Operacional atualizado','ok');
+ }catch(e){console.error('Status Operacional:',e);opsCache={erro:e.message||String(e)};opsRows=[];renderOps();if(manual)toast('Falha ao consultar o cache: '+(e.message||e),'er');}
+ finally{opsLoading=false;if(b){b.disabled=false;b.innerHTML=`${ic('refresh-cw')}Atualizar agora`;icons();}}
+}
+function renderOps(){
+ const box=$('opsCache');if(!box)return;
+ if(!opsCache){box.className='ops-cache';box.innerHTML=`<span class="dot"></span><b>Cache ainda não consultado</b><span>Abra a tela ou clique em Atualizar agora.</span>`;$('opsKpis').innerHTML='';$('opsTb').innerHTML='';icons();if(!opsLoading)opsCarregar();return;}
+ if(opsCache.erro){box.className='ops-cache err';box.innerHTML=`<span class="dot"></span><b>Falha na leitura do cache</b><span>${esc(opsCache.erro)}</span>`;$('opsKpis').innerHTML='';$('opsTb').innerHTML=`<tr><td colspan="7"><div class="empty"><div class="eic">${ic('cloud-off')}</div><b>Dados indisponíveis</b>Verifique a política SELECT da tabela e a atualização do cache.</div></td></tr>`;icons();return;}
+ const at=opsDate(opsCache.atualizado_em),idade=at?Date.now()-at:Infinity,stale=idade>15*60000;
+ box.className='ops-cache'+(stale?' warn':'');box.innerHTML=`<span class="dot"></span><b>${stale?'Cache desatualizado':'Cache disponível'}</b><span>Atualizado ${opsRel(at)} · ${opsFmt(at)} (UTC, sem ajuste)</span><span class="right">Cache: <b>${esc(opsCache.chave_cache||'—')}</b> · JSON: <b>${Number(opsCache._jsonEncontrados)||0} registro(s)</b> · Localidade: <b>${esc(opsCache.id_localidade||'—')}</b> · Janela: <b>${opsFmt(opsCache.data_inicio)} → ${opsFmt(opsCache.data_fim)}</b></span>`;
+ const eventos=[...new Set(opsRows.map(r=>String(r.categoria_tempo||'—')))].sort(cmpTxt),sel=$('opsEvento')?.value||'';if($('opsEvento')){$('opsEvento').innerHTML='<option value="">Todas as categorias de tempo</option>'+eventos.map(x=>`<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}</option>`).join('');}
+ const q=norm($('opsQ')?.value||''),ev=$('opsEvento')?.value||'';const L=opsRows.filter(r=>(!ev||String(r.categoria_tempo||'—')===ev)&&(!q||norm(Object.values(r).map(v=>typeof v==='object'?JSON.stringify(v):v).join(' ')).includes(q)));
+ $('opsKpis').innerHTML=`<div class="kpi"><div class="ki">${ic('truck')}</div><div><span>Equipamentos</span><strong>${opsRows.length}</strong></div></div><div class="kpi"><div class="ki">${ic('database')}</div><div><span>Registros no cache</span><strong>${Number(opsCache.qtd_registros)||0}</strong></div></div><div class="kpi"><div class="ki">${ic('list-filter')}</div><div><span>Exibidos</span><strong>${L.length}</strong></div></div><div class="kpi ${stale?'warn':''}"><div class="ki">${ic(stale?'triangle-alert':'clock-check')}</div><div><span>Atualização</span><strong style="font-size:15px">${esc(opsRel(at))}</strong></div></div>`;
+ $('opsRes').textContent=`${L.length} de ${opsRows.length} equipamento(s)`;
+ $('opsTb').innerHTML=L.length?L.map(r=>`<tr>
+<td data-l="Equipamento"><span class="ops-eq">${esc(r.equipamento||'—')}</span></td>
+<td data-l="TAG"><span class="tag">${esc(r.TAG_Relacao||'—')}</span></td>
+<td data-l="Mina"><span class="mina">${esc(r.MINA_Relacao||'—')}</span></td>
+<td data-l="Frota">${esc(r.FROTA_Relacao||'—')}</td>
+<td data-l="Modelo">${esc(r.MODELO_Relacao||'—')}</td>
+<td data-l="Categoria tipo"><span class="pill gr">${esc(r.categoria_tipo||'—')}</span></td>
+<td data-l="Categoria tempo"><span class="ops-status ${opsStatusClass(r.categoria_tempo||'')}">${esc(r.categoria_tempo||'—')}</span></td>
+<td data-l="Razão"><b>${esc(r.razao_descricao||'—')}</b></td>
+<td data-l="Data inicial" class="nw">${opsFmt(r.data_inicial)}</td>
+<td data-l="Data final" class="nw">${opsFmt(r.data_final)}</td>
+<td data-l="Comentário"><div class="ops-detail">${esc(r.comentario||'—')}</div></td>
+<td data-l="ID apontamento"><span class="code">${esc(r.id_apontamento||'—')}</span></td>
+</tr>`).join(''):`<tr><td colspan="12"><div class="empty"><div class="eic">${ic('search-x')}</div><b>Nenhum equipamento encontrado</b>Ajuste a busca ou o filtro.</div></td></tr>`;
+ icons();clearInterval(opsTimer);opsTimer=setInterval(()=>{if(tela==='ops'&&!document.hidden)opsCarregar(false);},60000);
+}
+document.addEventListener('input',e=>{if(e.target?.id==='repQ')renderReport();});
+$('repAdd').onclick=()=>formReport();
+repCarregar();
+document.addEventListener('input',e=>{if(e.target?.id==='opsQ')renderOps();});
+document.addEventListener('change',e=>{if(e.target?.id==='opsEvento')renderOps();});
+</script>
+
 </body>
 </html>
