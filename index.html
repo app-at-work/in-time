@@ -3358,7 +3358,26 @@ function infStatusOperacional(){const cls=r=>{const t=String(r.categoria_tipo||'
 const SO_ICO={operando:'🟢',corretiva:'🔴',sistematica:'🔵',nao_sistematica:'🟡',acidente:'🟠',manutencao:'⚪',outros:'⚪'};
 const SO_LEG=[['operando','Operando'],['corretiva','Corretiva'],['sistematica','Sistemática'],['nao_sistematica','Não sistemática'],['acidente','Acidente']];
 const soIcone=k=>SO_ICO[k]||'⚪';
-const repsDe=eq=>REPORTS.filter(r=>norm(r.equip)===norm(eq)).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
+/* Status operacional: considera apenas os reports de HOJE e ONTEM (dia civil, horário de Brasília) */
+const diaBR=d=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+const horaBR=d=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+function diasReport(){
+  const hoje=diaBR(new Date()),[y,m,dd]=hoje.split('-').map(Number),o=new Date(Date.UTC(y,m-1,dd-1));
+  return {hoje,ontem:`${o.getUTCFullYear()}-${pad(o.getUTCMonth()+1)}-${pad(o.getUTCDate())}`};
+}
+function repQuando(r){
+  const d=new Date(r.created); if(isNaN(d)) return '';
+  const {hoje,ontem}=diasReport(),k=diaBR(d);
+  return `${k===hoje?'Hoje':k===ontem?'Ontem':fmtD(d)} ${horaBR(d)}`;
+}
+const repsDe=eq=>{
+  const {hoje,ontem}=diasReport();
+  return REPORTS.filter(r=>{
+    if(norm(r.equip)!==norm(eq)) return false;
+    const d=new Date(r.created); if(isNaN(d)) return false;
+    const k=diaBR(d); return k===hoje||k===ontem;
+  }).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
+};
 function textoStatusOperacional(){
   const D=infDados(),SO=infStatusOperacional(),porTag=groupBy(D.X,x=>norm(x.l.tag));
   const L=['*RELATÓRIO DIÁRIO · STATUS OPERACIONAL*',`Data: ${new Date().toLocaleDateString('pt-BR')} · Semana ${D.hoje.label}`,'',`*Legenda:* ${SO_LEG.map(([k,t])=>`${soIcone(k)} ${t}`).join(' · ')}`,''];
@@ -3368,7 +3387,7 @@ function textoStatusOperacional(){
       L.push(`  *Frota · ${frota}*`);
       eqs.forEach(x=>{
         L.push(`    ${soIcone(x.k)} *${x.eq}* · ${x.status}`);
-        repsDe(x.eq).forEach(r=>L.push(`      📝 Report: ${r.motivo} · ${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'}`));
+        repsDe(x.eq).forEach(r=>L.push(`      📝 Report (${repQuando(r)}): ${r.motivo} · ${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'}`));
         (porTag.get(norm(x.eq))||[]).sort((a,b)=>a.l.ini-b.l.ini).forEach(y=>{
           const n=new Set(y.l.itens.map(r=>r.Ordem)).size,p=psDe(y.l.id),ag=new Date(),ini=new Date(y.l.ini),hj=ini.toDateString()===ag.toDateString();
           const st=p?.st==='fi'?'Finalizada':p?.st==='ex'?'Em execução':+ini<+ag?'Não iniciada em atraso':hj?'Não iniciada para hoje':'Não iniciada a partir de amanhã';
@@ -3529,7 +3548,7 @@ function renderInf(){
       return `<button type="button" class="so-prog" data-sq="${esc(y.l.id)}" title="Abrir sequência de atividades"><span class="so-prog-top"><span class="code">${esc(y.l.id)}</span>${statusCardProg(y.l)}${ic('chevron-right','sm')}</span><span class="so-prog-grid"><span><small>Atividades</small><b>${y.l.itens.length}</b></span><span><small>Ordens</small><b>${ordens}</b></span><span><small>Previsão de início</small><b>${fmtDH(y.l.ini)}</b></span><span><small>Previsão de finalização</small><b>${fmtDH(y.l.fim)}</b></span><span class="wide"><small>Local</small><b>${esc(local)}</b></span></span></button>`;
     }).join('');
     const reps=repsDe(x.eq);
-    const repHtml=reps.length?`<div class="so-report"><b>${ic('clipboard-pen-line','sm')}Report técnico</b>${reps.map(r=>`<div>${esc(r.motivo)}<small>${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'} · ${esc(r.autor||'Técnico')}</small></div>`).join('')}</div>`:'';
+    const repHtml=reps.length?`<div class="so-report"><b>${ic('clipboard-pen-line','sm')}Report técnico</b>${reps.map(r=>`<div>${esc(r.motivo)}<small>${ic('clock','sm')}${esc(repQuando(r))} · ${r.temPrev?`Previsão: ${fmtDH(new Date(r.previsao))}`:'Sem previsão'} · ${esc(r.autor||'Técnico')}</small></div>`).join('')}</div>`:'';
     return `<div class="so-row ${progs.length?'has-prog':''}"><div class="so-head"><span class="so-dot" aria-hidden="true">${soIcone(x.k)}</span><b class="so-tag">${esc(x.eq)}</b><span class="so-s ${x.k}">${esc(x.status)}</span></div>${repHtml}${progs.length?`<div class="so-programacoes">${progHtml}</div>`:''}</div>`;
   }).join('')}</div></section>`).join('')}</details>`).join('');
   const comProg=SO.rows.filter(x=>(progPorTag.get(norm(x.eq))||[]).length).length;
@@ -4661,7 +4680,7 @@ sbIniciar();
 .so-dot{font-size:13px;line-height:1;flex-shrink:0}
 .so-tag{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--pri-dark);flex:0 0 auto;white-space:nowrap}
 .so-head .so-s{margin-left:auto;flex-shrink:0;font-size:11.5px;font-weight:700;white-space:nowrap;padding:3px 9px}
-.so-report{margin:0;width:100%}
+.so-report{margin:0;width:100%}.so-report small{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .so-programacoes{display:flex;flex-direction:column;gap:6px;min-width:0}
 /* Report · espaçamento TAG x hora e duplo clique */
 .rep-card{cursor:default;user-select:none}.rep-card:hover{border-color:var(--pri);background:var(--pri-soft)}
