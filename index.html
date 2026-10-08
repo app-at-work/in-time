@@ -3378,12 +3378,14 @@ const repsDe=eq=>{
     const k=diaBR(d); return k===hoje||k===ontem;
   }).sort((a,b)=>String(b.created).localeCompare(String(a.created)));
 };
-function textoStatusOperacional(){
+const momentoCopia=()=>{const d=new Date(),f=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d).reduce((o,p)=>(o[p.type]=p.value,o),{});return `${f.day}/${f.month}/${f.year} às ${f.hour}:${f.minute} (Brasília)`;};
+function textoStatusOperacional(filtro={}){
   const D=infDados(),SO=infStatusOperacional(),porTag=groupBy(D.X,x=>norm(x.l.tag));
-  const L=['*RELATÓRIO DIÁRIO · STATUS OPERACIONAL*',`Data: ${new Date().toLocaleDateString('pt-BR')} · Semana ${D.hoje.label}`,'',`*Legenda:* ${SO_LEG.map(([k,t])=>`${soIcone(k)} ${t}`).join(' · ')}`,''];
-  [...groupBy([...SO.rows].sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].forEach(([mina,rm])=>{
+  const escopo=filtro.mina?(filtro.frota!=null?`Mina ${filtro.mina} · Frota ${filtro.frota}`:`Mina ${filtro.mina}`):'';
+  const L=['*RELATÓRIO DIÁRIO · STATUS OPERACIONAL*',`Copiado em: ${momentoCopia()}`,`Semana ${D.hoje.label}`,...(escopo?[`Escopo: ${escopo}`]:[]),'',`*Legenda:* ${SO_LEG.map(([k,t])=>`${soIcone(k)} ${t}`).join(' · ')}`,''];
+  [...groupBy([...SO.rows].filter(x=>!filtro.mina||x.mina===filtro.mina).sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].forEach(([mina,rm])=>{
     L.push(`*MINA · ${mina}*`);
-    [...groupBy(rm,x=>x.frota)].forEach(([frota,eqs])=>{
+    [...groupBy(rm.filter(x=>filtro.frota==null||x.frota===filtro.frota),x=>x.frota)].forEach(([frota,eqs])=>{
       L.push(`  *Frota · ${frota}*`);
       eqs.forEach(x=>{
         L.push(`    ${soIcone(x.k)} *${x.eq}* · ${x.status}`);
@@ -3400,12 +3402,12 @@ function textoStatusOperacional(){
   });
   return L.join('\n').trim();
 }
-async function copiarStatusOperacional(){
-  const texto=textoStatusOperacional();
+async function copiarStatusOperacional(filtro={}){
+  const texto=textoStatusOperacional(filtro);
   try{
     if(navigator.clipboard&&window.isSecureContext) await navigator.clipboard.writeText(texto);
     else{const t=document.createElement('textarea');t.value=texto;t.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
-    toast('Relatório diário copiado para a área de transferência','ok');
+    toast(filtro.mina?(filtro.frota!=null?`Frota ${filtro.frota} (${filtro.mina}) copiada`:`Mina ${filtro.mina} copiada`):'Relatório diário copiado para a área de transferência','ok');
   }catch(e){toast('Não foi possível copiar o relatório','er');}
 }
 function renderInf(){
@@ -3540,7 +3542,7 @@ function renderInf(){
   const soRot={operando:'Operando',manutencao:'Em manutenção',corretiva:'Corretiva',sistematica:'Sistemática',nao_sistematica:'Não sistemática',acidente:'Acidente',outros:'Outros'},soOrd=['operando','manutencao','corretiva','sistematica','nao_sistematica','acidente','outros'];
   const soResumo=soOrd.filter(k=>SO.cont[k]).map(k=>`<span class="so-s ${k}"><b>${SO.cont[k]}</b>${soRot[k]}</span>`).join('');
   const progPorTag=groupBy(D.X,x=>norm(x.l.tag));
-  const soLista=[...groupBy([...SO.rows].sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].map(([mina,rm])=>`<details class="so-mina-grp" open><summary>${ic('mountain','sm')}<b>Mina · ${esc(mina)}</b><span>${pl(rm.length,'equipamento','equipamentos')}</span></summary>${[...groupBy(rm,x=>x.frota)].map(([frota,eqs])=>`<section class="so-frota-grp"><h5>${ic('truck','sm')}Frota · ${esc(frota)}<span>${eqs.length}</span></h5><div class="so-equip-list">${eqs.map(x=>{
+  const soLista=[...groupBy([...SO.rows].sort((a,b)=>cmpTxt(a.mina,b.mina)||cmpTxt(a.frota,b.frota)||cmpTxt(a.eq,b.eq)),x=>x.mina)].map(([mina,rm])=>`<details class="so-mina-grp" open><summary><button type="button" class="so-cp" data-noprint data-copy-so-mina="${esc(mina)}" title="Copiar somente a mina ${esc(mina)}" aria-label="Copiar somente a mina ${esc(mina)}">${ic('copy','sm')}</button>${ic('mountain','sm')}<b>Mina · ${esc(mina)}</b><span>${pl(rm.length,'equipamento','equipamentos')}</span></summary>${[...groupBy(rm,x=>x.frota)].map(([frota,eqs])=>`<section class="so-frota-grp"><h5><button type="button" class="so-cp" data-noprint data-copy-so-mina="${esc(mina)}" data-copy-so-frota="${esc(frota)}" title="Copiar somente a frota ${esc(frota)} (${esc(mina)})" aria-label="Copiar somente a frota ${esc(frota)}">${ic('copy','sm')}</button>${ic('truck','sm')}Frota · ${esc(frota)}<span>${eqs.length}</span></h5><div class="so-equip-list">${eqs.map(x=>{
     const progs=(progPorTag.get(norm(x.eq))||[]).sort((a,b)=>a.l.ini-b.l.ini);
     const progHtml=progs.map(y=>{
       const ordens=new Set(y.l.itens.map(r=>r.Ordem)).size;
@@ -3661,6 +3663,11 @@ function ligarConteudoInf(root){
   root.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => abrirSequencia(b.dataset.sq));
   root.querySelectorAll('[data-of]').forEach(b => b.onclick = () => abrirInTime(b.dataset.of));
   root.querySelectorAll('[data-copy-so]').forEach(b => b.onclick = e => { e.stopPropagation(); copiarStatusOperacional(); });
+  root.querySelectorAll('[data-copy-so-mina]').forEach(b => b.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    const f = { mina:b.dataset.copySoMina }; if(b.dataset.copySoFrota !== undefined) f.frota = b.dataset.copySoFrota;
+    copiarStatusOperacional(f);
+  });
   icons();
 }
 document.addEventListener('keydown', e => {
@@ -4670,6 +4677,7 @@ sbIniciar();
 .so-mina-grp>summary{display:flex;align-items:center;gap:7px;padding:10px 12px;background:#f3f8f8;cursor:pointer;color:var(--pri-dark);list-style:none}
 .so-mina-grp>summary::-webkit-details-marker{display:none}
 .so-mina-grp>summary>span{margin-left:auto;color:var(--muted);font-size:11px;font-weight:600}
+.so-cp{width:26px;height:26px;flex-shrink:0;border:1px solid #cdd8fb;border-radius:8px;background:var(--blue-soft);color:var(--blue);display:inline-grid;place-items:center;padding:0;transition:.15s}.so-cp:hover{background:var(--blue);color:#fff}
 .so-frota-grp{padding:10px 12px}.so-frota-grp+.so-frota-grp{border-top:1px dashed var(--border)}
 .so-frota-grp h5{display:flex;align-items:center;gap:6px;margin:0 0 8px;color:var(--blue);font-size:12.5px}
 .so-frota-grp h5 span{margin-left:auto;background:var(--blue-soft);padding:2px 8px;border-radius:10px;font-size:10.5px}
