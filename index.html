@@ -1004,6 +1004,15 @@ header .sb-st ~ .actions{margin-left:10px}
 .cn-m{display:block;font-size:12px;color:#56706e;font-style:italic;margin-top:1px}
 .hbtn .spin{animation:spin 1s linear infinite}
 .lc-hoje{margin:0 14px 8px 18px;padding:8px 10px;border:1px solid #f6dfae;background:#fff8e6;border-radius:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.lc-hoje>small{color:var(--muted);display:inline-flex;align-items:center;gap:4px;min-width:0}.pill.hj{background:#fff4e5;color:#b45309;border:1px solid #f6dfae;max-width:100%;overflow:hidden;text-overflow:ellipsis}.pill.hj.atras{background:var(--err-soft);color:var(--err);border-color:#f5c2c7}.al>.pill.hj{align-self:flex-start;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+/* atividades criadas no app: duplo clique abre a edição */
+.tl li[data-ed] .bx{cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.tl li[data-ed] .bx:hover{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-ring)}
+.tl li[data-ed] .bx,.tl li[data-ed] .bx *{-webkit-user-select:none;user-select:none}
+.tl li[data-ed] .bx textarea{-webkit-user-select:text;user-select:text}
+.ed-h{display:inline-flex;align-items:center;color:var(--muted);opacity:.75}
+.form input.edt{padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;outline:none;background:#fbfdfd;color:var(--txt);width:100%}
+.form input.edt:focus{border-color:var(--pri);box-shadow:0 0 0 4px var(--pri-ring);background:#fff}
+.ed-cor .ai{background:var(--err-soft)!important;color:var(--err)!important}
 </style>
 </head>
 <body class="locked">
@@ -2867,9 +2876,10 @@ function abrirSequencia(id, manter){
     } else if(!ps && i === 0){
       acoes = `<div class="lock">${ic('lock','sm')}Inicie a programação para registrar a execução das atividades.</div>`;
     }
-    return gap + `<li class="${st ? st.st : ''}"><span class="passo">${r.Passo}</span>
+    const edOk = !!r.CriadoEm && ps?.st !== 'fi' && (typeof podeAgirLote !== 'function' || podeAgirLote(l.id));
+    return gap + `<li class="${st ? st.st : ''}"${edOk ? ` data-ed="${i}" title="Duplo clique para editar"` : ''}><span class="passo">${r.Passo}</span>
       <div class="bx ${st ? 'st-'+st.st : (r._avisos.length?'w':'')} ${r.CorAdd?'cora':''}">
-        <div class="h"><b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''}${r.CorAdd ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}<span class="dur">${ic('timer','sm')}${fmtDur(r.Fim-r.Inicio)}</span>
+        <div class="h"><b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''}${r.CorAdd ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}<span class="dur">${ic('timer','sm')}${fmtDur(r.Fim-r.Inicio)}</span>${edOk ? `<span class="ed-h" title="Duplo clique para editar">${ic('pencil','sm')}</span>` : ''}
           ${T ? `<span class="pill ${T.c}" style="margin-left:auto">${ic(T.i,'sm')}${T.t}</span>` : `<span class="pill gr" style="margin-left:auto">Pendente</span>`}</div>
         <div class="ds">${esc(r.Atividade)}</div>
         <small><span>${ic('play','sm')}${fmtDH(r.Inicio)}</span><span>${ic('flag','sm')}${fmtDH(r.Fim)}</span>${ctTxt(r)}</small>
@@ -2913,6 +2923,11 @@ function abrirSequencia(id, manter){
   $('mBody').scrollTop = y;
 
   const atualizar = () => { stSalvar(); abrirSequencia(id, true); if(tela === 'int') renderInTime(); };
+  $('mBody').querySelectorAll('li[data-ed]').forEach(li => li.ondblclick = e => {
+    if(e.target.closest('button,textarea,input,select')) return;
+    const r = l.itens[+li.dataset.ed];
+    if(r) editarAtividadeSeq(l, r);
+  });
   $('mBody').querySelectorAll('[data-dl]').forEach(b => b.onclick = () => {
     const r = l.itens[+b.dataset.dl], ultima = l.itens.length === 1;
     abrirModal('Excluir atividade', 'trash-2', `<p>Excluir a atividade <b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''} · ${esc(r.Atividade)} de <b>${esc(l.id)}</b>?</p>
@@ -3094,6 +3109,57 @@ function formAtividadesSeq(l){
   setTimeout(() => $('corL').querySelector('[data-c=ord]').focus(), 50);
 }
 
+/* ---------- EDITAR atividade criada no app (duplo clique na Sequência de atividades) ---------- */
+function editarAtividadeSeq(l, r){
+  const id = l.id;
+  if(!r || !r.CriadoEm) return;
+  if(psDe(id)?.st === 'fi'){ toast('Programação finalizada: atividades bloqueadas para edição','er'); return; }
+  if(typeof podeAgirLote === 'function' && !podeAgirLote(id)){ toast('Sem permissão para editar nesta programação','er'); return; }
+  sqEdit = null;
+  const st = stDe(r), T = st && STL[st.st];
+  const ordObr = !!String(r.Ordem || '').trim();
+  abrirModal(`Editar atividade · ${id}`, 'pencil', `
+    <div class="cor-info nt">
+      <div><small>${ic('tag','sm')}Equipamento</small><b>${esc(l.tag)} <i>${esc(l.id)}</i></b></div>
+      <div><small>${ic('map-pin','sm')}Local</small><b>${esc(locTxt(l.id) || 'Sem alocação')}</b></div>
+      <div><small>${ic('list-ordered','sm')}Passo</small><b>${r.Passo}</b></div>
+    </div>
+    ${T ? `<div class="hint" style="max-width:none;margin-bottom:12px">${ic(T.i,'sm')}<span>Esta atividade está <b>${T.t}</b>. O status${st.obs ? ' e o motivo' : ''} serão mantidos ao salvar.</span></div>` : ''}
+    <form class="form" id="fEdAt" autocomplete="off">
+      <label class="f"><span class="fl">Ordem${ordObr ? '<em>*</em>' : ''}</span><input type="text" id="edOrd" maxlength="20" value="${esc(r.Ordem)}" placeholder="Nº da ordem"></label>
+      <label class="f full"><span class="fl">Atividade<em>*</em></span><input type="text" id="edAtv" maxlength="120" value="${esc(r.Atividade)}" placeholder="Descrição da atividade"></label>
+      <label class="f"><span class="fl">Início<em>*</em></span><input type="datetime-local" class="edt" id="edIni" value="${dtLocal(r.Inicio)}"></label>
+      <label class="f"><span class="fl">Fim<em>*</em></span><input type="datetime-local" class="edt" id="edFim" value="${dtLocal(r.Fim)}"></label>
+      <div class="pat-card ed-cor"><div class="ai">${ic('siren')}</div><div><b>Corretiva</b><small>Destaca a atividade em vermelho na sequência</small></div>
+        <label class="switch c-cor"><input type="checkbox" id="edCor" ${r.CorAdd ? 'checked' : ''}><span class="tr"></span><span id="edCorT">${r.CorAdd ? 'Sim' : 'Não'}</span></label></div>
+      <div class="ferr"></div><button type="submit" hidden></button>
+    </form>`,
+    `<span class="info">${ic('info','sm')}Campos com <b style="color:var(--err)">*</b> são obrigatórios.</span><button class="btn" id="edV">${ic('undo-2')}Voltar</button><button class="btn solid" id="edS">${ic('save')}Salvar alterações</button>`, 'md');
+  $('edCor').onchange = e => { $('edCorT').textContent = e.target.checked ? 'Sim' : 'Não'; };
+  $('edV').onclick = () => abrirSequencia(id);
+  $('edS').onclick = () => $('fEdAt').requestSubmit();
+  $('fEdAt').onsubmit = e => {
+    e.preventDefault();
+    const ord = $('edOrd').value.trim(), atv = $('edAtv').value.trim();
+    const ini = $('edIni').value ? new Date($('edIni').value) : null, fim = $('edFim').value ? new Date($('edFim').value) : null;
+    if(ordObr && !ord) return erroForm('Informe a ordem.', 'edOrd');
+    if(!atv) return erroForm('Informe a atividade.', 'edAtv');
+    if(!ini || isNaN(ini)) return erroForm('Informe o início.', 'edIni');
+    if(!fim || isNaN(fim)) return erroForm('Informe o fim.', 'edFim');
+    if(fim < ini) return erroForm('O fim não pode ser anterior ao início.', 'edFim');
+    if(l.itens.some(x => x !== r && x.Ordem === ord && x.Atividade === atv && +x.Inicio === +ini)) return erroForm('Já existe uma atividade igual (ordem, atividade e início) nesta sequência.', 'edAtv');
+    const kAnt = stKey(r), stAnt = ST[kAnt];
+    r.Ordem = ord; r.Atividade = atv; r.Inicio = ini; r.Fim = fim;
+    if($('edCor').checked) r.CorAdd = true; else delete r.CorAdd;
+    const kNovo = stKey(r);
+    if(stAnt && kNovo !== kAnt){ delete ST[kAnt]; ST[kNovo] = stAnt; }   // o status acompanha a atividade editada
+    recalcular(); salvar(); stSalvar(); montarFiltros();
+    if(tela === 'int') renderInTime(); else if(tela === 'prog') render();
+    abrirSequencia(id);
+    toast('Atividade atualizada','ok');
+  };
+  setTimeout(() => $('edAtv').focus(), 50);
+}
 /* opção "Ao terminar, seguir com a programação" na sequência */
 function segHtml(l, ps){
   const fin = ps?.st === 'fi', cur = SEG[l.id] && LMAP.get(SEG[l.id]);
