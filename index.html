@@ -1137,6 +1137,8 @@ header .sb-st ~ .actions{margin-left:10px}
   <section class="scr" id="scrPert" hidden>
     <div class="toolbar">
       <div class="wkp pt-pick" id="pertPick"></div>
+      <div class="wkp pt-pick" id="pertMinaPick"></div>
+      <div class="wkp pt-pick" id="pertFrotaPick"></div>
       <div class="wkp pt-pick" id="pertTagPick"></div>
       <span class="fres" id="pertRes"></span>
       <div class="pert-key"><span><svg class="arr" viewBox="0 0 18 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 5h12M10 2l4 3-4 3"/></svg>Término → início</span><span><svg class="dsh" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2 1.6"><path d="M6 0v8"/><path d="M3 7l3 4 3-4z" fill="currentColor" stroke="none"/></svg>Inicia antes da anterior terminar</span><span><i class="t"></i>Atividade</span><span><i class="c"></i>Corretiva</span><span><i class="w"></i>Aviso</span></div>
@@ -5097,8 +5099,8 @@ async function pertPdfBuild(PDFLib, G, ctx){
     return out;
   };
   const SIZES = [8, 7.5, 7, 6.5, 6];
-  const OPCOES = [['Executada', C.ok], ['Paralisada', C.warn], ['Cancelada', C.gray]];
   const pages = [];
+
   G.forEach(g => {
     const yTitle = M + 34, ySub = yTitle + 16, yTop = ySub + 12, avail = PH - M - FOOT - yTop;
     /* medição das linhas de todas as programações da TAG (texto completo) */
@@ -5116,6 +5118,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
     if(!m) m = measure(fs);
     /* cada programação tem a sua escala de dias */
     const SC = g.lotes.map(P => { const E = pertDias(P.ini, P.fim); return { E, pos:pertPos(P.rows, E), dw:PWd / E.n }; });
+
     /* paginação: a TAG só quebra de página se não couber; nunca corta uma linha */
     const paginas = []; let cur = [], used = 0;
     g.lotes.forEach((P, li) => {
@@ -5129,13 +5132,14 @@ async function pertPdfBuild(PDFLib, G, ctx){
       }
     });
     if(cur.length) paginas.push(cur);
+
     paginas.forEach((segs, pg) => {
       const page = doc.addPage([PW, PH]); pages.push(page);
       const Y = y => PH - y;
       const T = (s, x, y, size, font = F, color = C.ink) => { if(s) page.drawText(s, { x, y:Y(y), size, font, color }); };
       const R = (x, y, w, h, o = {}) => page.drawRectangle({ x, y:Y(y + h), width:w, height:h, ...o });
       const L = (x1, y1, x2, y2, t, color, dash) => page.drawLine({ start:{ x:x1, y:Y(y1) }, end:{ x:x2, y:Y(y2) }, thickness:t, color, ...(dash ? { dashArray:dash } : {}) });
-      /* retângulo com cantos arredondados */
+
       const RR = (x, y, w, h, r, o = {}) => { r = Math.min(r, w / 2, h / 2);
         page.drawSvgPath(`M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${w - r} ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`, { x, y:Y(y), ...o }); };
       T('PERT  ·  ' + safe(ctx.titulo), M, M + 8, 10.5, FB, C.pri);
@@ -5143,6 +5147,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
       L(M, M + 15, PW - M, M + 15, .8, C.pri);
       T(safe(g.tag), M, yTitle, 18, FB, C.ink);
       T(safe(`${g.nAt} atividade(s)  ·  ${g.lotes.length} programação(ões)  ·  ${fDH(g.ini)} a ${fDH(g.fim)}` + (paginas.length > 1 ? `  ·  continuação ${pg + 1}/${paginas.length}` : '')), M, ySub, 8.5, F, C.mut);
+
       let y = yTop;
       segs.forEach(sg => {
         const P = g.lotes[sg.li], { E, pos, dw } = SC[sg.li], mm = m[sg.li], idxs = []; for(let i = sg.from; i < sg.to; i++) idxs.push(i);
@@ -5153,6 +5158,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
         const info = safe(`${P.rows.length} atividade(s)  ·  ${fDc(P.ini)} a ${fDc(P.fim)}  ·  ${E.n} ${E.n === 1 ? 'dia' : 'dias'}` + (corP ? '  ·  CORRETIVA' : '') + (sg.cont ? '  ·  continuação' : ''));
         T(info, M + 9 + W(FB, ttl, 8.2) + 10, y + 11, 7, F, corP ? C.red : C.mut);
         const yHead = y + LH, yRows = yHead + HEAD;
+
         /* cabeçalho da programação: uma coluna por dia (limite de cada dia) */
         R(M, yHead, PW - 2 * M, HEAD, { color:C.soft, borderColor:C.line, borderWidth:.5 });
         T('Passo · Ordem · Atividade', M + 6, yHead + 12, 7.5, FB, C.mut);
@@ -5170,12 +5176,13 @@ async function pertPdfBuild(PDFLib, G, ctx){
           if(horas) [6, 12, 18].forEach(h => T(h + 'h', x0 + dw * h / 24 - 3.5, yHead + 27.2, 5, F, C.mut));
         });
         L(X0 + PWd, yHead, X0 + PWd, yHead + HEAD, .6, C.arr);
-        /* campos de preenchimento manual do técnico (design moderno): Status e Observação */
+        /* campos em branco (preenchimento manual pelo técnico): Status e Observação */
         [['STATUS', 'marcar com X', XR + 4, STW - 6], ['OBSERVAÇÃO', 'escrever à mão', XR + STW + 2, OBW - 6]].forEach(([nm, sub, cx0, cw]) => {
           RR(cx0, yHead + 3, cw, HEAD - 6, 6, { color:C.pri });
           const t = safe(nm); T(t, cx0 + (cw - W(FB, t, 7.2)) / 2, yHead + 14, 7.2, FB, C.white);
           const h = safe(sub); T(h, cx0 + (cw - W(F, h, 5.6)) / 2, yHead + 22.4, 5.6, F, C.priSoft);
         });
+
         /* posições verticais */
         let yy = yRows; const top = {}; idxs.forEach(i => { top[i] = yy; yy += mm[i].h; });
         const mid = i => top[i] + mm[i].h / 2;
@@ -5184,6 +5191,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
         idxs.forEach(i => L(M, top[i] + mm[i].h, PW - M, top[i] + mm[i].h, .3, C.line));
         L(M, yRows, M, yy, .3, C.line); L(PW - M, yRows, PW - M, yy, .3, C.line); L(M + LABW, yRows, M + LABW, yy, .5, C.line);
         /* Status (3 opções para marcar) e Observação (caixa em branco) */
+        const OPCOES = [['Executada', C.ok], ['Paralisada', C.warn], ['Cancelada', C.gray]];
         idxs.forEach(i => {
           const bt = top[i] + 3, bh = mm[i].h - 6;
           RR(XR + 4, bt, STW - 6, bh, 6, { color:C.soft, borderColor:C.bord, borderWidth:.6 });
@@ -5227,7 +5235,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
           const tw = Math.max(W(F, t1, 6.6), W(F, t2, 6.6));
           if(x + w + 5 + tw <= XR - 2){                               // à direita da barra
             T(t1, x + w + 5, mid(i) - 1.6, 6.6, F, C.ink); T(t2, x + w + 5, mid(i) + 6, 6.6, F, C.mut);
-          } else if(x - 12 - W(F, t1 + '   ·   ' + t2, 6.4) >= X0 + 2){   // à esquerda da barra (alinhado à direita)
+          } else if(x - 12 - W(F, t1 + '   ·   ' + t2, 6.4) >= X0 + 2){   // à esquerda da barra
             const ta = t1 + '   ·   ' + t2, rx = x - 12;
             T(ta, rx - W(F, ta, 6.4), mid(i) - 7.6, 6.4, F, C.ink);
           } else {                                                    // barra larga: acima dela
@@ -5239,6 +5247,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
       });
     });
   });
+
   const N = pages.length, foot = safe(`IN TIME  ·  Gerado em ${ctx.geradoEm}  ·  Vermelho: corretiva  ·  Borda laranja: aviso  ·  Status: marcar com X  ·  Observação: escrever`);
   pages.forEach((pg, i) => {
     pg.drawLine({ start:{ x:M, y:M + 8 }, end:{ x:PW - M, y:M + 8 }, thickness:.4, color:C.line });
@@ -5247,6 +5256,8 @@ async function pertPdfBuild(PDFLib, G, ctx){
   });
   return await doc.save();
 }
+
+
 /* ================= PERT · sequência de atividades por TAG ================= */
 let pertSem = null;                 // null = padrão (semana atual, ou a mais recente com dados) · '*' = todas
 function pertSemanas(){
@@ -5326,83 +5337,118 @@ function pertPickLigar(){
 }
 
 /* ---------- filtro por TAG (lista suspensa moderna, com busca e seleção múltipla) ---------- */
-let pertTags = new Set();           // vazio = todas as TAGs
-function pertTagsDaSemana(sel){
+/* ---------- filtros MINA · FROTA · TAG (listas suspensas modernas, com busca e seleção múltipla) ----------
+   Mina e frota vêm do Status Operacional (pela TAG/equipamento). TAG sem correspondência: "Sem mina" / "Sem frota". */
+const PERT_SEM = { mina:'Sem mina', frota:'Sem frota' };
+let pertTags = new Set(), pertMinas = new Set(), pertFrotas = new Set();   // vazio = todos
+const PF = {
+  mina: { id:'pmn', box:'pertMinaPick', icon:'mountain', label:'Filtrar por MINA',  ph:'Buscar mina...',  todas:'Todas as minas',   um:'mina',  pl:'minas' },
+  frota:{ id:'pfr', box:'pertFrotaPick', icon:'truck',    label:'Filtrar por FROTA', ph:'Buscar frota...', todas:'Todas as frotas',  um:'frota', pl:'frotas' },
+  tag:  { id:'ptg', box:'pertTagPick',  icon:'tag',      label:'Filtrar por TAG',   ph:'Buscar TAG...',   todas:'Todas as TAGs',    um:'TAG',   pl:'TAGs' }
+};
+const pertSet = k => k === 'mina' ? pertMinas : k === 'frota' ? pertFrotas : pertTags;
+let _pertEqRef = null, _pertEqMap = new Map(), _pertOpsWait = null;
+function pertEqInfo(tag){
+  if(_pertEqRef !== opsRows){
+    _pertEqRef = opsRows; _pertEqMap = new Map();
+    (opsRows || []).forEach(r => {
+      const info = { mina:String(r.MINA_Relacao || '').trim() || PERT_SEM.mina, frota:String(r.FROTA_Relacao || '').trim() || PERT_SEM.frota };
+      [r.equipamento, r.TAG_Relacao].forEach(k => { const n = norm(k); if(n && !_pertEqMap.has(n)) _pertEqMap.set(n, info); });
+    });
+  }
+  return _pertEqMap.get(norm(tag)) || { mina:PERT_SEM.mina, frota:PERT_SEM.frota };
+}
+/* TAGs da semana, com mina e frota */
+function pertBaseTags(sel){
   const m = new Map();
   LOTES.filter(l => sel === '*' || l.sem.label === sel).forEach(l => {
-    const o = m.get(l.tag) || { tag:l.tag, p:0, a:0 }; o.p++; o.a += l.itens.length; m.set(l.tag, o);
+    const o = m.get(l.tag) || { tag:l.tag, ...pertEqInfo(l.tag), p:0, a:0 }; o.p++; o.a += l.itens.length; m.set(l.tag, o);
   });
-  return [...m.values()].sort((a,b) => cmpTxt(a.tag, b.tag));
+  return [...m.values()];
 }
-/* seleção efetiva: só TAGs que existem na semana escolhida (se nenhuma, vale "todas") */
-function pertTagsSel(sel){
-  const ex = new Set(pertTagsDaSemana(sel).map(x => x.tag));
-  return new Set([...pertTags].filter(t => ex.has(t)));
+/* opções de um filtro respeitam os outros dois (mina, frota e TAG) */
+function pertOpcoes(k, sel){
+  const outros = ['mina','frota','tag'].filter(j => j !== k), m = new Map();
+  pertBaseTags(sel).filter(x => outros.every(j => !pertSet(j).size || pertSet(j).has(x[j]))).forEach(x => {
+    const o = m.get(x[k]) || { v:x[k], n:0, a:0, p:0 }; o.n++; o.a += x.a; o.p += x.p; m.set(x[k], o);
+  });
+  const sem = v => v === PERT_SEM.mina || v === PERT_SEM.frota;
+  return [...m.values()].sort((a,b) => (sem(a.v) - sem(b.v)) || cmpTxt(a.v, b.v));
+}
+/* seleção efetiva: só valores que existem entre as opções (se nenhum, vale "todos") */
+function pertSelEf(k, sel){
+  const ex = new Set(pertOpcoes(k, sel).map(o => o.v));
+  return new Set([...pertSet(k)].filter(v => ex.has(v)));
 }
 function pertDadosFiltrados(sel){
-  const f = pertTagsSel(sel), G = pertDados(sel);
-  return f.size ? G.filter(g => f.has(g.tag)) : G;
+  const f = { tag:pertSelEf('tag', sel), mina:pertSelEf('mina', sel), frota:pertSelEf('frota', sel) };
+  return pertDados(sel).filter(g => { const i = pertEqInfo(g.tag);
+    return (!f.tag.size || f.tag.has(g.tag)) && (!f.mina.size || f.mina.has(i.mina)) && (!f.frota.size || f.frota.has(i.frota)); });
 }
-function pertTagBtn(){
-  const sel = pertSemSel(), T = pertTagsDaSemana(sel), f = pertTagsSel(sel), ar = [...f].sort(cmpTxt);
-  const tx = !f.size ? `<b>Todas as TAGs</b><i>${pl(T.length,'TAG','TAGs')}</i>`
-    : f.size === 1 ? `<b>${esc(ar[0])}</b><i>${pl(T.find(x => x.tag === ar[0])?.a || 0,'atividade','atividades')}</i>`
-    : `<b>${f.size} TAGs</b><i>${esc(ar.slice(0,3).join(', '))}${f.size > 3 ? '…' : ''}</i>`;
-  return `<button type="button" class="wkp-btn" id="ptgBtn" aria-haspopup="listbox" aria-expanded="false" ${T.length ? '' : 'disabled'}>
-      <span class="wkp-ic">${ic('tag')}</span><span class="wkp-tx"><small>Filtrar por TAG</small>${tx}</span>
-      ${f.size ? `<span class="ptg-x" id="ptgX" role="button" title="Limpar filtro" aria-label="Limpar filtro">${ic('x','sm')}</span>` : ''}${ic('chevron-down','chev')}</button>
-    <div class="wkp-pop" id="ptgPop" hidden role="listbox" aria-multiselectable="true">
-      <div class="input">${ic('search')}<input id="ptgQ" placeholder="Buscar TAG..."></div>
-      <div class="ms-act"><button type="button" class="btn sm" id="ptgAll">${ic('check-check','sm')}Selecionar visíveis</button><button type="button" class="btn sm" id="ptgClr">${ic('eraser','sm')}Limpar</button><span class="cnt" id="ptgCnt"></span></div>
-      <div class="wkp-l" id="ptgL"></div></div>`;
+const pertOptSub = (k, o) => k === 'tag' ? `${pl(o.a,'atividade','atividades')} · ${pl(o.p,'programação','programações')}` : `${pl(o.n,'TAG','TAGs')} · ${pl(o.p,'programação','programações')}`;
+function pertMsBtn(k){
+  const C = PF[k], sel = pertSemSel(), O = pertOpcoes(k, sel), f = pertSelEf(k, sel), ar = [...f].sort(cmpTxt);
+  const tx = !f.size ? `<b>${C.todas}</b><i>${pl(O.length, C.um, C.pl)}</i>`
+    : f.size === 1 ? `<b>${esc(ar[0])}</b><i>${k === 'tag' ? pl(O.find(x => x.v === ar[0])?.a || 0,'atividade','atividades') : pl(O.find(x => x.v === ar[0])?.n || 0,'TAG','TAGs')}</i>`
+    : `<b>${f.size} ${C.pl}</b><i>${esc(ar.slice(0,3).join(', '))}${f.size > 3 ? '…' : ''}</i>`;
+  return `<button type="button" class="wkp-btn" id="${C.id}Btn" aria-haspopup="listbox" aria-expanded="false" ${O.length ? '' : 'disabled'}>
+      <span class="wkp-ic">${ic(C.icon)}</span><span class="wkp-tx"><small>${C.label}</small>${tx}</span>
+      ${f.size ? `<span class="ptg-x" id="${C.id}X" role="button" title="Limpar filtro" aria-label="Limpar filtro">${ic('x','sm')}</span>` : ''}${ic('chevron-down','chev')}</button>
+    <div class="wkp-pop" id="${C.id}Pop" hidden role="listbox" aria-multiselectable="true">
+      <div class="input">${ic('search')}<input id="${C.id}Q" placeholder="${C.ph}"></div>
+      <div class="ms-act"><button type="button" class="btn sm" id="${C.id}All">${ic('check-check','sm')}Selecionar visíveis</button><button type="button" class="btn sm" id="${C.id}Clr">${ic('eraser','sm')}Limpar</button><span class="cnt" id="${C.id}Cnt"></span></div>
+      <div class="wkp-l" id="${C.id}L"></div></div>`;
 }
-function pertTagRender(){
-  const box = $('pertTagPick'); if(!box) return;
-  if($('ptgPop') && !$('ptgPop').hidden) return;
-  box.innerHTML = pertTagBtn(); pertTagLigar(); icons();
+function pertMsRender(k){
+  const C = PF[k], box = $(C.box); if(!box) return;
+  if($(C.id + 'Pop') && !$(C.id + 'Pop').hidden) return;          // não fecha a lista aberta
+  box.innerHTML = pertMsBtn(k); pertMsLigar(k); icons();
 }
-function pertTagLigar(){
-  const btn = $('ptgBtn'), pop = $('ptgPop'), box = $('pertTagPick'); if(!btn) return;
+function pertTagRender(){ ['mina','frota','tag'].forEach(pertMsRender); }
+function pertMsLigar(k){
+  const C = PF[k], I = C.id, btn = $(I + 'Btn'), pop = $(I + 'Pop'), box = $(C.box); if(!btn) return;
   let foco = -1;
-  const visiveis = () => { const q = norm($('ptgQ').value); return pertTagsDaSemana(pertSemSel()).filter(x => !q || norm(x.tag).includes(q)); };
-  const atualizaBtn = () => { const w = document.createElement('div'); w.innerHTML = pertTagBtn(); const nb = w.querySelector('#ptgBtn');
-    btn.innerHTML = nb.innerHTML; btn.setAttribute('aria-expanded', 'true'); btn.querySelector('#ptgX')?.addEventListener('click', limpar); icons(); };
+  const visiveis = () => { const q = norm($(I + 'Q').value); return pertOpcoes(k, pertSemSel()).filter(x => !q || norm(x.v).includes(q)); };
+  const atualizaBtn = () => { const w = document.createElement('div'); w.innerHTML = pertMsBtn(k); const nb = w.querySelector('#' + I + 'Btn');
+    btn.innerHTML = nb.innerHTML; btn.setAttribute('aria-expanded', 'true'); btn.querySelector('#' + I + 'X')?.addEventListener('click', limpar); icons(); };
   const lista = () => {
-    const sel = pertSemSel(), f = pertTagsSel(sel), V = visiveis();
-    $('ptgCnt').textContent = f.size ? `${f.size} selecionada(s)` : 'Todas';
-    $('ptgL').innerHTML = V.length ? V.map((x,i) => `<button type="button" role="option" class="wkp-o ${f.has(x.tag)?'on':''} ${i===foco?'fc':''}" data-t="${esc(x.tag)}" aria-selected="${f.has(x.tag)}">
-        <span class="ptg-ck ${f.has(x.tag)?'on':''}">${f.has(x.tag) ? ic('check','sm') : ''}</span>
-        <span class="wd"><b>${esc(x.tag)}</b><small>${pl(x.a,'atividade','atividades')} · ${pl(x.p,'programação','programações')}</small></span></button>`).join('')
-      : `<div class="ms-empty">Nenhuma TAG encontrada</div>`;
-    $('ptgL').querySelectorAll('[data-t]').forEach(b => b.onclick = () => alternar(b.dataset.t));
-    icons(); const fc = $('ptgL').querySelector('.fc'); if(fc) fc.scrollIntoView({ block:'nearest' });
+    const sel = pertSemSel(), f = pertSelEf(k, sel), V = visiveis();
+    $(I + 'Cnt').textContent = f.size ? `${f.size} selecionado(s)` : 'Todos';
+    $(I + 'L').innerHTML = V.length ? V.map((x,i) => `<button type="button" role="option" class="wkp-o ${f.has(x.v)?'on':''} ${i===foco?'fc':''}" data-v="${esc(x.v)}" aria-selected="${f.has(x.v)}">
+        <span class="ptg-ck ${f.has(x.v)?'on':''}">${f.has(x.v) ? ic('check','sm') : ''}</span>
+        <span class="wd"><b>${esc(x.v)}</b><small>${pertOptSub(k, x)}</small></span></button>`).join('')
+      : `<div class="ms-empty">Nenhum resultado</div>`;
+    $(I + 'L').querySelectorAll('[data-v]').forEach(b => b.onclick = () => alternar(b.dataset.v));
+    icons(); const fc = $(I + 'L').querySelector('.fc'); if(fc) fc.scrollIntoView({ block:'nearest' });
   };
-  const aplicar = () => { atualizaBtn(); lista(); renderPert(); $('ptgQ').focus(); };
-  const alternar = t => { const f = pertTagsSel(pertSemSel()); pertTags = f; f.has(t) ? f.delete(t) : f.add(t); pertTags = new Set(f); aplicar(); };
-  const limpar = e => { if(e){ e.stopPropagation(); e.preventDefault(); } pertTags = new Set(); if($('ptgPop') && !$('ptgPop').hidden) aplicar(); else { renderPert(); pertTagRender(); } };
-  const abrir = () => { pop.hidden = false; btn.setAttribute('aria-expanded','true'); box.classList.add('open'); foco = -1; $('ptgQ').value = ''; lista();
-    const on = $('ptgL').querySelector('.on'); if(on) on.scrollIntoView({ block:'center' }); setTimeout(() => $('ptgQ').focus(), 20); };
+  const aplicar = () => { atualizaBtn(); lista(); renderPert(); $(I + 'Q').focus(); };
+  const alternar = v => { const f = pertSelEf(k, pertSemSel()); f.has(v) ? f.delete(v) : f.add(v); pertSet(k).clear(); f.forEach(x => pertSet(k).add(x)); aplicar(); };
+  const limpar = e => { if(e){ e.stopPropagation(); e.preventDefault(); } pertSet(k).clear(); if($(I + 'Pop') && !$(I + 'Pop').hidden) aplicar(); else { renderPert(); pertTagRender(); } };
+  const abrir = () => { pop.hidden = false; btn.setAttribute('aria-expanded','true'); box.classList.add('open'); foco = -1; $(I + 'Q').value = ''; lista();
+    const on = $(I + 'L').querySelector('.on'); if(on) on.scrollIntoView({ block:'center' }); setTimeout(() => $(I + 'Q').focus(), 20); };
   const fechar = () => { pop.hidden = true; btn.setAttribute('aria-expanded','false'); box.classList.remove('open'); };
-  btn.onclick = e => { if(e.target.closest('#ptgX')) return; pop.hidden ? abrir() : fechar(); };
-  $('ptgX')?.addEventListener('click', limpar);
-  $('ptgAll').onclick = () => { const f = pertTagsSel(pertSemSel()); visiveis().forEach(x => f.add(x.tag)); pertTags = new Set(f); aplicar(); };
-  $('ptgClr').onclick = () => limpar();
-  $('ptgQ').oninput = () => { foco = -1; lista(); };
-  $('ptgQ').onkeydown = e => {
-    const n = $('ptgL').querySelectorAll('[data-t]').length;
+  btn.onclick = e => { if(e.target.closest('#' + I + 'X')) return; pop.hidden ? abrir() : fechar(); };
+  $(I + 'X')?.addEventListener('click', limpar);
+  $(I + 'All').onclick = () => { const f = pertSelEf(k, pertSemSel()); visiveis().forEach(x => f.add(x.v)); pertSet(k).clear(); f.forEach(x => pertSet(k).add(x)); aplicar(); };
+  $(I + 'Clr').onclick = () => limpar();
+  $(I + 'Q').oninput = () => { foco = -1; lista(); };
+  $(I + 'Q').onkeydown = e => {
+    const n = $(I + 'L').querySelectorAll('[data-v]').length;
     if(e.key === 'ArrowDown'){ e.preventDefault(); foco = Math.min(n - 1, foco + 1); lista(); }
     else if(e.key === 'ArrowUp'){ e.preventDefault(); foco = Math.max(0, foco - 1); lista(); }
-    else if(e.key === 'Enter'){ e.preventDefault(); const b = $('ptgL').querySelectorAll('[data-t]')[Math.max(0, foco)]; if(b) alternar(b.dataset.t); }
+    else if(e.key === 'Enter'){ e.preventDefault(); const b = $(I + 'L').querySelectorAll('[data-v]')[Math.max(0, foco)]; if(b) alternar(b.dataset.v); }
   };
-  pop.onkeydown = e => { if(e.key === 'Escape'){ e.stopPropagation(); fechar(); pertTagRender(); $('ptgBtn').focus(); } };
-  document.removeEventListener('pointerdown', window._ptgOut);
-  window._ptgOut = e => { const b = $('pertTagPick'); if(b && !b.contains(e.target) && $('ptgPop') && !$('ptgPop').hidden){ fechar(); pertTagRender(); } };
-  document.addEventListener('pointerdown', window._ptgOut);
+  pop.onkeydown = e => { if(e.key === 'Escape'){ e.stopPropagation(); fechar(); pertMsRender(k); $(I + 'Btn').focus(); } };
+  const out = '_pmsOut_' + k;
+  document.removeEventListener('pointerdown', window[out]);
+  window[out] = e => { const b = $(C.box); if(b && !b.contains(e.target) && $(I + 'Pop') && !$(I + 'Pop').hidden){ fechar(); pertMsRender(k); } };
+  document.addEventListener('pointerdown', window[out]);
 }
-
 /* ---------- tela ---------- */
 function renderPert(){
   const el = $('pertG'); if(!el) return;
+  if(!opsCache && !opsLoading) opsCarregar(false).then(() => { if(tela === 'pert') renderPert(); });
+  else if(opsLoading && !_pertOpsWait) _pertOpsWait = setTimeout(() => { _pertOpsWait = null; if(tela === 'pert') renderPert(); }, 1500);
   pertPickRender(); pertTagRender();
   const S = pertSemanas(), sel = pertSemSel();
   $('pertPdf').disabled = !S.length;
@@ -5472,6 +5518,7 @@ addEventListener('resize', () => { clearTimeout(_pertRz); _pertRz = setTimeout((
 $('pertPdf').onclick = () => pertExportarPDF();
 async function pertExportarPDF(){
   if(!window.PDFLib){ toast('Biblioteca de PDF não carregada. Verifique a conexão e tente novamente.','er'); return; }
+  if(!opsCache && !opsLoading) await opsCarregar(false);
   const sel = pertSemSel(), G = pertDadosFiltrados(sel);
   if(!G.length){ toast('Nada para exportar na semana selecionada','er'); return; }
   const btn = $('pertPdf'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${ic('loader-circle','spin')}Gerando…`;
@@ -5497,9 +5544,11 @@ async function pertExportarPDF(){
 </script>
 
 <style>
-/* PERT v5 · sem áreas escurecidas e sem "Cruza" */
+/* PERT v5 · sem áreas escurecidas e sem "Cruza"; filtros lado a lado */
 .pt-bd,.pt-cx,.pt-cols{display:none!important}
 .pt-cell,.pt-cell.alt,.pt-cell.we{background:transparent!important}
+.pt-pick .wkp-btn{min-width:215px}
+.pt-pick.open{z-index:25!important}
 </style>
 </body>
 </html>
