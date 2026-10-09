@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
 :root{
   --pri:rgba(0,126,122,1); --pri-dark:rgba(0,96,93,1);
@@ -1050,6 +1051,7 @@ header .sb-st ~ .actions{margin-left:10px}
   <div class="actions" id="hActCfg" hidden></div>
   <div class="actions" id="hActMin" hidden></div>
   <div class="actions" id="hActAcs" hidden></div>
+  <div class="actions" id="hActPert" hidden><button class="hbtn solid" id="pertPdf" title="Exportar PDF: uma TAG por página"><i data-lucide="file-down"></i>Exportar PDF</button></div>
   <div class="actions" id="hActRep" hidden><button class="hbtn solid" id="repAdd"><i data-lucide="plus"></i>Adicionar report</button></div>
   <div class="actions" id="hActOps" hidden><button class="hbtn" id="opsRefresh" onclick="opsCarregar(true)"><i data-lucide="refresh-cw"></i>Atualizar agora</button></div>
 </header>
@@ -1128,6 +1130,17 @@ header .sb-st ~ .actions{margin-left:10px}
       </div>
       <div class="itdet" id="iDet"></div>
     </div>
+  </section>
+
+  <!-- ================= PERT ================= -->
+  <section class="scr" id="scrPert" hidden>
+    <div class="toolbar">
+      <div class="wkp pt-pick" id="pertPick"></div>
+      <div class="wkp pt-pick" id="pertTagPick"></div>
+      <span class="fres" id="pertRes"></span>
+      <div class="pert-key"><span><svg class="arr" viewBox="0 0 18 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 5h12M10 2l4 3-4 3"/></svg>Término → início</span><span><svg class="dsh" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.2 1.6"><path d="M6 0v8"/><path d="M3 7l3 4 3-4z" fill="currentColor" stroke="none"/></svg>Inicia antes da anterior terminar</span><span><i class="t"></i>Atividade</span><span><i class="c"></i>Corretiva</span><span><i class="w"></i>Aviso</span></div>
+    </div>
+    <div class="panel"><div class="gantt" id="pertG"></div></div>
   </section>
 
   <!-- ================= OFICINAS (controle de cadastros) ================= -->
@@ -2161,7 +2174,7 @@ async function perfisCarregar(){
   if(acessoBloqueado){ acessoDesbloquear(); }                      // foi liberado: libera a tela e carrega os dados
   if(TELAS.find(t => t.id === tela)?.adm && !ehADM()) trocarTela('inf');
   montarMenu();
-  if(typeof atualizarTela === 'function' && ['prog','int'].includes(tela) && !$('modal').classList.contains('show')) atualizarTela();
+  if(typeof atualizarTela === 'function' && ['prog','int','pert'].includes(tela) && !$('modal').classList.contains('show')) atualizarTela();
   if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs();
 }
 function perfisRealtime(){
@@ -2876,7 +2889,7 @@ function abrirSequencia(id, manter){
     } else if(!ps && i === 0){
       acoes = `<div class="lock">${ic('lock','sm')}Inicie a programação para registrar a execução das atividades.</div>`;
     }
-    const edOk = !!r.CriadoEm && ps?.st !== 'fi' && (typeof podeAgirLote !== 'function' || podeAgirLote(l.id));
+    const edOk = !!r.CriadoEm && ps?.st !== 'fi' && (typeof podePlanejarLote !== 'function' || podePlanejarLote(l.id));
     return gap + `<li class="${st ? st.st : ''}"${edOk ? ` data-ed="${i}" title="Duplo clique para editar"` : ''}><span class="passo">${r.Passo}</span>
       <div class="bx ${st ? 'st-'+st.st : (r._avisos.length?'w':'')} ${r.CorAdd?'cora':''}">
         <div class="h"><b>${esc(r.Ordem)}</b>${r.OMVE ? omveBadge() : ''}${r.CorAdd ? `<span class="pill cor">${ic('siren','sm')}CORRETIVA</span>` : ''}<span class="dur">${ic('timer','sm')}${fmtDur(r.Fim-r.Inicio)}</span>${edOk ? `<span class="ed-h" title="Duplo clique para editar">${ic('pencil','sm')}</span>` : ''}
@@ -3114,7 +3127,7 @@ function editarAtividadeSeq(l, r){
   const id = l.id;
   if(!r || !r.CriadoEm) return;
   if(psDe(id)?.st === 'fi'){ toast('Programação finalizada: atividades bloqueadas para edição','er'); return; }
-  if(typeof podeAgirLote === 'function' && !podeAgirLote(id)){ toast('Sem permissão para editar nesta programação','er'); return; }
+  if(typeof podePlanejarLote === 'function' && !podePlanejarLote(id)){ toast('Sem permissão para editar nesta programação','er'); return; }
   sqEdit = null;
   const st = stDe(r), T = st && STL[st.st];
   const ordObr = !!String(r.Ordem || '').trim();
@@ -4030,7 +4043,7 @@ document.addEventListener('visibilitychange', () => {
 });
 function atualizarTela(){
   menuLater();
-  if(tela === 'inf') renderInf(); else if(tela === 'ops') renderOps(); else if(tela === 'rep') renderReport(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs(); else renderOfi();
+  if(tela === 'inf') renderInf(); else if(tela === 'ops') renderOps(); else if(tela === 'rep') renderReport(); else if(tela === 'prog') render(); else if(tela === 'int') renderInTime(); else if(tela === 'cfg') renderCfg(); else if(tela === 'min') renderMin(); else if(tela === 'acs') renderAcs(); else if(tela === 'pert') renderPert(); else renderOfi();
 }
 /* ---------- primeira carga + envio dos dados locais existentes ---------- */
 async function sbIniciar(){
@@ -4080,6 +4093,7 @@ const TELAS = [
   { id:'rep',  sigla:'RPT', icon:'clipboard-pen-line', nome:'Report', desc:'Registro dos técnicos', sub:'Report diário por equipamento · Motivo · Previsão', sec:'Visão geral', executor:true },
   { id:'prog', sigla:'PRG', icon:'calendar-range', nome:'Programação', desc:'Importar e sequenciar',     sub:'Programação por TAG · Semana (seg–dom) · Sequência', sec:'Planejamento' },
   { id:'int',  sigla:'INT', icon:'timer',          nome:'IN TIME',     desc:'Alocação em BOX e pátio',   sub:'Atribuição das programações aos BOX e pátios',        sec:'Planejamento' },
+  { id:'pert', sigla:'PRT', icon:'workflow',       nome:'PERT',        desc:'Sequência por TAG',         sub:'Sequência de atividades por TAG · Filtro por semana · PDF', sec:'Planejamento' },
   { id:'min',  sigla:'MIN', icon:'mountain',       nome:'Minas',       desc:'Cadastro de minas',         sub:'Dimensão de minas · Ordem · Situação',                sec:'Cadastros', adm:true },
   { id:'acs',  sigla:'ACS', icon:'key-round',      nome:'Acessos',     desc:'Permissão por oficina',     sub:'Oficinas em que cada executor pode agir',             sec:'Cadastros', adm:true },
   { id:'ofi',  sigla:'OFI', icon:'factory',        nome:'Oficinas',    desc:'Controle de cadastros',     sub:'Cadastro de oficinas · Mina · BOX · Pátio',           sec:'Cadastros', adm:true },
@@ -4129,10 +4143,10 @@ function trocarTela(s){
   tela = s;
   const T = TELAS.find(t => t.id === s);
   $('hTit').textContent = T.nome; $('hSub').textContent = T.sub; $('hIcon').innerHTML = ic(T.icon);
-  $('scrInf').hidden = s !== 'inf'; $('scrOps').hidden = s !== 'ops'; $('scrRep').hidden = s !== 'rep'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs';
-  $('hActInf').hidden = s !== 'inf'; $('hActOps').hidden = s !== 'ops'; $('hActRep').hidden = s !== 'rep'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs';
+  $('scrInf').hidden = s !== 'inf'; $('scrOps').hidden = s !== 'ops'; $('scrRep').hidden = s !== 'rep'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs'; $('scrPert').hidden = s !== 'pert';
+  $('hActInf').hidden = s !== 'inf'; $('hActOps').hidden = s !== 'ops'; $('hActRep').hidden = s !== 'rep'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs'; $('hActPert').hidden = s !== 'pert';
   try{ localStorage.setItem('importador_tela', s); }catch(e){}
-  if(s === 'inf') renderInf(); else if(s === 'ops') renderOps(); else if(s === 'rep') renderReport(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else renderOfi();
+  if(s === 'inf') renderInf(); else if(s === 'ops') renderOps(); else if(s === 'rep') renderReport(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else if(s === 'pert') renderPert(); else renderOfi();
   montarMenu();
 }
 
@@ -4295,17 +4309,19 @@ const executorTemOf = ofId => !!ofId && !!EXM.get(EU?.id)?.has(ofId);
 /* pode executar ações (iniciar, executar, paralisar, atribuir...) na oficina */
 function podeAgirOf(ofId){
   const p = meuPerfil();
-  if(p === 'adm' || p === 'programador') return true;
+  if(p === 'adm') return true;
   if(p === 'executor') return executorTemOf(ofId);
   return false;
 }
 /* ações na programação: depende da oficina onde está alocada */
 function podeAgirLote(id){
   const p = meuPerfil();
-  if(p === 'adm' || p === 'programador') return true;
+  if(p === 'adm') return true;
   if(p === 'executor') return !!ALOC[id] && podeAgirOf(ALOC[id].of);
   return false;
 }
+/* ações de PROGRAMAÇÃO (adicionar/editar/excluir atividades, programação seguinte): quem executa + Programador */
+function podePlanejarLote(id){ return meuPerfil() === 'programador' || podeAgirLote(id); }
 /* exclusão de programação: ADM tudo; Programador só o que importou */
 function podeExcluirLote(id){
   const p = meuPerfil();
@@ -4512,6 +4528,14 @@ function abrirLotesImp(){
     _as(id, manter);
     if(podeAgirLote(id) || !$('modal').classList.contains('show')) return;
     const mb = $('mBody');
+    if(meuPerfil() === 'programador'){            // Programador: só ações de programação (sem iniciar / executar / finalizar / transferir)
+      mb.querySelectorAll('.sact').forEach(a => { a.querySelectorAll('button:not([data-dl])').forEach(b => b.remove()); if(!a.querySelector('button')) a.remove(); });
+      mb.querySelectorAll('.mform,.lock').forEach(x => x.remove());
+      ['psIni','psFin','psReab','sqTransf','sqAll'].forEach(k => $(k)?.remove());
+      const bn = document.createElement('div'); bn.className = 'ro-ban sq';
+      bn.innerHTML = `${ic('info','sm')}<span>Perfil <b>Programador</b>: iniciar, executar e finalizar é feito pelo Executor. Aqui você pode adicionar, editar e excluir atividades e definir a programação seguinte.</span>`;
+      mb.prepend(bn); icons(); return;
+    }
     mb.querySelectorAll('.sact,.mform,.lock').forEach(x => x.remove());
     ['psIni','psFin','psReab','sqTransf','sqCor','sqAll'].forEach(k => $(k)?.remove());
     const sp = $('sqSeg'); if(sp){ sp.querySelectorAll('button').forEach(b => b.disabled = true); sp.style.pointerEvents = 'none'; sp.style.opacity = .7; }
@@ -4522,6 +4546,10 @@ function abrirLotesImp(){
   // ações protegidas também na função (atalhos externos)
   const _ip = iniciarProg;
   iniciarProg = function(id){ if(!podeAgirLote(id)){ toast('Sem permissão para iniciar nesta oficina','er'); return; } _ip(id); };
+  const _fc = formCorretiva;
+  formCorretiva = function(o, loc){ if(!podeAgirOf(o.id)){ toast('Sem permissão de ação nesta oficina','er'); return; } return _fc(o, loc); };
+  const _tb = transferirBoxSeq;
+  transferirBoxSeq = function(l){ if(!podeAgirLote(l.id)){ toast('Sem permissão para transferir de BOX','er'); return; } return _tb(l); };
   const _fa = formAtribuir;
   formAtribuir = function(o, loc){ if(!podeAgirOf(o.id)){ toast('Sem permissão de ação nesta oficina','er'); return; } _fa(o, loc); };
   // importação: quem confirmou passa a ser o dono da programação
@@ -4897,6 +4925,426 @@ $('repAdd').onclick=()=>formReport();
 repCarregar();
 document.addEventListener('input',e=>{if(e.target?.id==='opsQ')renderOps();});
 document.addEventListener('change',e=>{if(e.target?.id==='opsEvento')renderOps();});
+</script>
+<style>
+/* ===== PERT ===== */
+.pert-key{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-left:auto;font-size:11.5px;color:var(--muted)}
+.pert-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.pert-key i{width:14px;height:10px;border-radius:3px;display:inline-block;background:#9aa9a8}
+.pert-key i.c{background:var(--err)}.pert-key i.t{background:var(--pri)}.pert-key i.w{background:#fff;border:2px solid var(--warn)}
+.pert-key svg.arr{width:18px;height:10px;color:#6b8583}
+.pt-pick .wkp-btn{min-width:250px}
+.pt-pick .wkp-pop{left:0;right:auto}
+.pt-wrap{--lw:clamp(230px,30%,360px);min-width:720px}
+.pt-head{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:var(--lw) 1fr;background:#f6faf9;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.pt-head>div{padding:9px 12px}.pt-head>div:first-child{border-right:1px solid var(--border)}
+.pt-grp{margin-bottom:4px}
+.pt-gh{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:8px 12px;background:#f3f8f8;border-bottom:1px solid var(--border);border-top:1px solid var(--border);font-size:12px}
+.pt-gm{display:inline-flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap}
+.pt-lgs{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.pt-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:ui-monospace,Consolas,monospace;font-weight:600;background:#fff;border:1px solid var(--border);border-radius:7px;padding:2px 7px;cursor:pointer}
+.pt-lg:hover{border-color:var(--pri)}.pt-lg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.pt-row{display:grid;grid-template-columns:var(--lw) 1fr;min-height:48px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.pt-row:hover{background:var(--pri-soft)}
+.pt-lab{display:flex;align-items:center;gap:9px;padding:7px 12px;border-left:4px solid var(--c);border-right:1px solid var(--border);font-size:12.5px;line-height:1.4;min-width:0}
+.pt-tx{white-space:normal;overflow-wrap:anywhere;min-width:0}
+.pt-trk{position:relative;min-width:0}
+.pt-plot{position:absolute;left:12px;right:150px;top:0;bottom:0}
+.pt-bar{position:absolute;top:50%;height:18px;margin-top:-9px;min-width:4px;border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,.18)}
+.pt-bar.warn{outline:2px solid var(--warn);outline-offset:1px}
+.pt-v{position:absolute;width:0;border-left:1.5px solid #7b8f8e;pointer-events:none}
+.pt-h{position:absolute;height:0;border-top:1.5px solid #7b8f8e;pointer-events:none}
+.pt-v.ov{border-left-style:dashed;border-left-color:var(--warn)}.pt-h.ov{border-top-style:dashed;border-top-color:var(--warn)}
+.pt-ar{position:absolute;top:50%;width:0;height:0;margin-top:-4px;margin-left:-6px;border-left:6px solid #7b8f8e;border-top:4px solid transparent;border-bottom:4px solid transparent;pointer-events:none}
+.pt-ar.ov{border-left-color:var(--warn)}
+.pt-dt{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:1px;font-size:11px;line-height:1.3;white-space:nowrap;pointer-events:none;color:var(--txt)}
+.pt-dt b{display:inline-block;min-width:34px;font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+@media (max-width:680px){ .pert-key{margin-left:0} .pt-pick,.pt-pick .wkp-btn{width:100%;min-width:0} .pt-pick .wkp-pop{left:0;right:0;width:auto} .pt-wrap{--lw:220px} }
+
+.pt-ad{position:absolute;top:calc(50% - 16px);width:0;height:0;margin-left:-4.5px;border-top:7px solid var(--warn);border-left:4.5px solid transparent;border-right:4.5px solid transparent;pointer-events:none}
+.pert-key svg.dsh{width:12px;height:12px;color:var(--warn)}
+
+.pt-ct{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:3px;font-size:11px;line-height:1.4;color:var(--muted)}
+.pt-ct span{display:block;min-width:0;max-width:100%;overflow-wrap:break-word;word-break:normal}
+.pt-ct svg{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:4px}
+.pt-ct b{color:var(--txt);font-weight:600}
+
+.pt-pick .wkp-btn{position:relative}
+#pertTagPick{z-index:19}
+#pertTagPick.open{z-index:21}
+.ptg-x{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--muted);flex:none;cursor:pointer}
+.ptg-x:hover{background:var(--err-soft);color:var(--err)}
+.ptg-ck{width:20px;height:20px;border-radius:6px;border:1.5px solid #b7c6c5;background:#fff;display:grid;place-items:center;flex:none;color:#fff;transition:.12s}
+.ptg-ck.on{background:var(--pri);border-color:var(--pri)}
+.wkp-o .wd{display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:1}
+.wkp-o .wd b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wkp-o .wd small{font-size:11.5px;color:var(--muted)}
+#ptgPop .ms-act{padding:0 2px}
+</style>
+<script>
+/* ---- PERT: escala de tempo INDIVIDUAL de cada TAG (não é exibida) ----
+   rows = [{ini,fim}] da TAG; devolve [{s,e}] como fração (0..1) entre o 1º início e o último término da TAG.
+   Atividades que começam antes de outra terminar mantêm a posição real (as barras se sobrepõem). */
+function pertPos(rows){
+  if(!rows.length) return [];
+  const min = Math.min(...rows.map(r => +r.ini)), max = Math.max(...rows.map(r => +r.fim)), span = Math.max(1, max - min);
+  return rows.map(r => ({ s:(+r.ini - min) / span, e:(+r.fim - min) / span }));
+}
+/* ---- PDF do PERT (pdf-lib): cada TAG começa em página nova; só continua em outra página se não couber ---- */
+/* G = [{ tag, ini, fim, lotes:[{id,cor,corretiva}], rows:[{n,ordem,atividade,ini,fim,cor,corretiva,aviso}] }]
+   ctx = { titulo, periodo, geradoEm, dur:(ms)=>string } */
+async function pertPdfBuild(PDFLib, G, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const doc = await PDFDocument.create();
+  const F = await doc.embedFont(StandardFonts.Helvetica), FB = await doc.embedFont(StandardFonts.HelveticaBold);
+  doc.setTitle(ctx.titulo + ' · ' + ctx.periodo); doc.setCreator('IN TIME'); doc.setProducer('IN TIME');
+  const PW = 841.89, PH = 595.28, M = 28, LABW = 262, DATEW = 108, FOOT = 20, HEAD = 16;
+  const X0 = M + LABW + 12, XR = PW - M - DATEW, PWd = XR - X0;
+  const p2 = n => String(n).padStart(2, '0');
+  const fDH = d => `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const fDc = d => `${p2(d.getDate())}/${p2(d.getMonth()+1)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const hex = h => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h || ''); return m ? rgb(parseInt(m[1],16)/255, parseInt(m[2],16)/255, parseInt(m[3],16)/255) : rgb(0, .494, .478); };
+  const C = { ink:rgb(.082,.188,.184), mut:rgb(.39,.5,.49), line:rgb(.84,.89,.89), soft:rgb(.955,.97,.97), pri:rgb(0,.494,.478), red:rgb(.863,.208,.271), warn:rgb(.83,.53,.02), arr:rgb(.42,.52,.51), white:rgb(1,1,1) };
+  const okCh = new Map();
+  const safe = s => [...String(s ?? '').replace(/[\r\n\t]+/g, ' ').replace(/→/g, '>').replace(/[–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'")]
+    .map(ch => { if(!okCh.has(ch)){ try{ F.widthOfTextAtSize(ch, 1); okCh.set(ch, true); }catch(e){ okCh.set(ch, false); } } return okCh.get(ch) ? ch : '?'; }).join('');
+  const W = (font, s, size) => font.widthOfTextAtSize(s, size);
+  /* quebra de linha SEM cortar o texto (palavras muito longas são quebradas por caractere) */
+  const wrap = (text, size, maxW, firstW) => {
+    const words = safe(text).split(/\s+/).filter(Boolean), out = []; let line = '', lim = firstW;
+    if(firstW < 30){ out.push(''); lim = maxW; }
+    for(let w of words){
+      const t = line ? line + ' ' + w : w;
+      if(W(F, t, size) <= lim){ line = t; continue; }
+      if(line){ out.push(line); line = ''; lim = maxW; }
+      while(W(F, w, size) > lim && w.length > 1){ let k = 1; while(k < w.length - 1 && W(F, w.slice(0, k + 1), size) <= lim) k++; out.push(w.slice(0, k)); w = w.slice(k); lim = maxW; }
+      line = w;
+    }
+    if(line || !out.length) out.push(line);
+    return out;
+  };
+  const SIZES = [8, 7.5, 7, 6.5, 6];
+  const pages = [];
+
+  G.forEach(g => {
+    const pos = pertPos(g.rows);
+    /* legenda das programações (até 3 linhas) */
+    const legSz = 7.5, legRows = [[]]; let lx = 0, more = 0;
+    g.lotes.forEach(l => {
+      const t = safe(l.id + (l.corretiva ? ' (corretiva)' : '')), w = 10 + W(F, t, legSz) + 14;
+      if(more){ more++; return; }
+      if(lx + w > PW - 2 * M && legRows[legRows.length - 1].length){ if(legRows.length === 3){ more = 1; return; } legRows.push([]); lx = 0; }
+      legRows[legRows.length - 1].push({ t, corretiva:!!l.corretiva, w, x:lx }); lx += w;
+    });
+    const legH = legRows.filter(r => r.length).length * 11;
+    const yTitle = M + 34, ySub = yTitle + 16, yLeg = ySub + 12, yHead = yLeg + legH + 6, yRows = yHead + HEAD;
+    const avail = PH - M - FOOT - yRows;
+
+    /* medição: texto completo, linhas quebradas; tenta caber a TAG numa página só */
+    const measure = fs => g.rows.map(r => {
+      const pre = r.ordem ? safe(r.ordem) + '  ·  ' : '', pw = pre ? W(FB, pre, fs) : 0, textW = LABW - 30;
+      const lines = wrap(r.atividade, fs, textW, textW - pw), lh = fs * 1.22;
+      const ms = Math.max(5.2, fs - 0.8), mlh = ms * 1.25;
+      const meta = [r.centro ? 'Centro: ' + r.centro : '', r.recursos ? 'Recursos: ' + r.recursos : ''].filter(Boolean).join('   |   ');
+      const mlines = meta ? wrap(meta, ms, textW, textW) : [];
+      return { pre, lines, lh, mlines, ms, mlh, h:Math.max(26, lines.length * lh + (mlines.length ? mlines.length * mlh + 2 : 0) + 9) };
+    });
+    let fs = 7, m = null;
+    for(const s of SIZES){ const mm = measure(s); if(mm.reduce((a, b) => a + b.h, 0) <= avail){ fs = s; m = mm; break; } }
+    if(!m) m = measure(fs);
+    const chunks = []; let cur = [], used = 0;
+    m.forEach((x, i) => { if(used + x.h > avail && cur.length){ chunks.push(cur); cur = []; used = 0; } cur.push(i); used += x.h; });
+    chunks.push(cur);
+
+    chunks.forEach((idxs, pg) => {
+      const page = doc.addPage([PW, PH]); pages.push(page);
+      const Y = y => PH - y;
+      const T = (s, x, y, size, font = F, color = C.ink) => { if(s) page.drawText(s, { x, y:Y(y), size, font, color }); };
+      const R = (x, y, w, h, o = {}) => page.drawRectangle({ x, y:Y(y + h), width:w, height:h, ...o });
+      const L = (x1, y1, x2, y2, t, color, dash) => page.drawLine({ start:{ x:x1, y:Y(y1) }, end:{ x:x2, y:Y(y2) }, thickness:t, color, ...(dash ? { dashArray:dash } : {}) });
+
+      T('PERT  ·  ' + safe(ctx.titulo), M, M + 8, 10.5, FB, C.pri);
+      const per = safe(ctx.periodo); T(per, PW - M - W(F, per, 9), M + 8, 9, F, C.mut);
+      L(M, M + 15, PW - M, M + 15, .8, C.pri);
+      T(safe(g.tag), M, yTitle, 18, FB, C.ink);
+      const nOrd = new Set(g.rows.map(r => r.ordem)).size;
+      T(safe(`${g.rows.length} atividade(s)  ·  ${nOrd} ordem(ns)  ·  ${g.lotes.length} programação(ões)  ·  ${fDH(g.ini)} a ${fDH(g.fim)}` + (chunks.length > 1 ? `  ·  continuação ${pg + 1}/${chunks.length}` : '')), M, ySub, 8.5, F, C.mut);
+      let ly = yLeg + 8;
+      legRows.forEach(r => { r.forEach(it => { R(M + it.x, ly - 6.5, 7, 7, { color:it.corretiva ? C.red : C.pri }); T(it.t, M + it.x + 10, ly, legSz, F, C.ink); }); if(r.length) ly += 11; });
+      if(more) T('+' + more + ' programação(ões)', PW - M - 90, yLeg + 8, legSz, F, C.mut);
+
+      /* cabeçalho de colunas (sem escala de tempo) */
+      R(M, yHead, PW - 2 * M, HEAD, { color:C.soft, borderColor:C.line, borderWidth:.5 });
+      T('Passo · Ordem · Atividade', M + 6, yHead + 10.6, 7.5, FB, C.mut);
+      T('Escala de tempo individual da TAG  ·  início e fim ao lado de cada barra', X0, yHead + 10.6, 7.5, FB, C.mut);
+
+      /* posições verticais */
+      let yy = yRows; const top = {}; idxs.forEach(i => { top[i] = yy; yy += m[i].h; });
+      const mid = i => top[i] + m[i].h / 2;
+      const xs = i => X0 + pos[i].s * PWd, xe = i => X0 + Math.max(pos[i].e * PWd, pos[i].s * PWd + 2.5);
+      /* linhas */
+      idxs.forEach(i => L(M, top[i] + m[i].h, PW - M, top[i] + m[i].h, .3, C.line));
+      L(M, yRows, M, yy, .3, C.line); L(PW - M, yRows, PW - M, yy, .3, C.line);
+      L(M + LABW, yRows, M + LABW, yy, .5, C.line);
+      /* conectores: término -> início; se a próxima começa antes da anterior terminar, mantém a posição real (tracejado laranja) */
+      for(let k = 0; k < idxs.length - 1; k++){
+        const i = idxs[k], j = idxs[k + 1], ov = +g.rows[j].ini < +g.rows[i].fim, col = ov ? C.warn : C.arr;
+        if(!ov){
+          const x1 = xe(i), x2 = xs(j);
+          L(x1, mid(i), x1, mid(j), .7, col); L(x1, mid(j), x2 - 1, mid(j), .7, col);
+          page.drawSvgPath(`M ${x2} 0 L ${x2 - 4.5} -2.6 L ${x2 - 4.5} 2.6 Z`, { x:0, y:Y(mid(j)), color:col, borderWidth:0 });
+        } else {
+          const x2 = xs(j);
+          L(x2, mid(i), x2, mid(j) - 10, .7, col, [2, 1.5]);
+          page.drawSvgPath(`M 0 0 L -2.6 -4.5 L 2.6 -4.5 Z`, { x:x2, y:Y(mid(j) - 5.5), color:col, borderWidth:0 });
+        }
+      }
+      /* rótulos + barras + datas */
+      idxs.forEach(i => {
+        const r = g.rows[i], b = m[i], n = b.lines.length, blk = n * b.lh + (b.mlines.length ? b.mlines.length * b.mlh + 2 : 0), base0 = top[i] + (b.h - blk) / 2 + b.lh / 2 + fs * 0.32;
+        R(M, top[i] + 1, 2.6, b.h - 2, { color:r.corretiva ? C.red : C.pri });
+        const nn = String(r.n); T(nn, M + 20 - W(FB, nn, fs), top[i] + b.h / 2 + fs * 0.34, fs, FB, C.pri);
+        b.lines.forEach((ln, k) => {
+          const y = base0 + k * b.lh;
+          if(k === 0 && b.pre){ T(b.pre, M + 26, y, fs, FB, C.ink); T(ln, M + 26 + W(FB, b.pre, fs), y, fs, F, C.ink); }
+          else T(ln, M + 26, y, fs, F, C.ink);
+        });
+        b.mlines.forEach((ln, k) => T(ln, M + 26, base0 + (n - 1) * b.lh + 2 + (k + 1) * b.mlh + (b.lh - b.mlh) / 2 - 0.5, b.ms, F, C.mut));
+        const x = xs(i), w = xe(i) - x, brd = (!r.corretiva && r.aviso) ? C.warn : null;
+        R(x, mid(i) - 5, w, 10, { color:r.corretiva ? C.red : C.pri, ...(brd ? { borderColor:brd, borderWidth:1.1 } : {}) });
+        const tx = x + w + 5;
+        T(safe('Início ' + fDc(r.ini)), tx, mid(i) - 1.2, 6.6, F, C.ink);
+        T(safe('Fim ' + fDc(r.fim) + '  ·  ' + ctx.dur(+r.fim - +r.ini)), tx, mid(i) + 7, 6.6, F, C.mut);
+      });
+    });
+  });
+
+  const N = pages.length, foot = safe(`IN TIME  ·  Planejamento e Controle de Manutenção  ·  Gerado em ${ctx.geradoEm}  ·  Escala individual por TAG  ·  Seta cinza: término para início  ·  Tracejado laranja: inicia antes da anterior terminar  ·  Barra vermelha: corretiva  ·  Borda laranja: aviso`);
+  pages.forEach((pg, i) => {
+    pg.drawLine({ start:{ x:M, y:M + 8 }, end:{ x:PW - M, y:M + 8 }, thickness:.4, color:C.line });
+    pg.drawText(foot, { x:M, y:M, size:6.5, font:F, color:C.mut });
+    const t = safe(`Página ${i + 1} de ${N}`); pg.drawText(t, { x:PW - M - W(F, t, 7.5), y:M, size:7.5, font:FB, color:C.ink });
+  });
+  return await doc.save();
+}
+
+/* ================= PERT · sequência de atividades por TAG ================= */
+let pertSem = null;                 // null = padrão (semana atual, ou a mais recente com dados) · '*' = todas
+function pertSemanas(){
+  const atual = semanaDe(new Date()).label;
+  return [...new Map(LOTES.map(l => [l.sem.label, l.sem])).values()]
+    .sort((a,b) => b.cod.localeCompare(a.cod))
+    .map(w => ({ w, atual:w.label === atual, n:LOTES.filter(l => l.sem.label === w.label).length }));
+}
+function pertSemSel(){
+  const S = pertSemanas();
+  if(pertSem === '*' && S.length) return '*';
+  if(pertSem && S.some(x => x.w.label === pertSem)) return pertSem;
+  return (S.find(x => x.atual) || S[0] || { w:{ label:'' } }).w.label;
+}
+/* sequência por TAG: todas as atividades da TAG na semana, ordenadas pelo início */
+function pertDados(sel){
+  const ls = LOTES.filter(l => sel === '*' || l.sem.label === sel);
+  return [...groupBy(ls, l => l.tag)].sort((a,b) => cmpTxt(a[0], b[0])).map(([tag, lotes]) => {
+    const rows = lotes.flatMap(l => l.itens.map(r => ({ r, l })))
+      .sort((a,b) => a.r.Inicio - b.r.Inicio || a.r.Fim - b.r.Fim || cmpTxt(a.r.Ordem, b.r.Ordem));
+    rows.forEach((x,i) => x.n = i + 1);
+    lotes = [...lotes].sort((a,b) => a.ini - b.ini);
+    return { tag, lotes, rows, ini:new Date(Math.min(...rows.map(x => +x.r.Inicio))), fim:new Date(Math.max(...rows.map(x => +x.r.Fim))) };
+  });
+}
+/* ---------- seletor moderno de semana (mesmo padrão do Informativo) ---------- */
+function pertPickHtml(){
+  const S = pertSemanas(), sel = pertSemSel(), o = S.find(x => x.w.label === sel);
+  const tx = sel === '*' ? `<b>Todas as semanas</b><i>${pl(S.length,'semana','semanas')} · ${pl(LOTES.length,'prog.','prog.')}</i>`
+    : o ? `<b>${o.w.label}${o.atual ? '<em>atual</em>' : ''}</b><i>${fmtD(o.w.seg)} a ${fmtD(o.w.dom)} · ${pl(o.n,'prog.','prog.')}</i>`
+    : `<b>—</b><i>Sem programações</i>`;
+  return `<button type="button" class="wkp-btn" id="pwkBtn" aria-haspopup="listbox" aria-expanded="false" ${S.length ? '' : 'disabled'}>
+      <span class="wkp-ic">${ic(sel === '*' ? 'layers' : 'calendar-days')}</span><span class="wkp-tx"><small>Semana do PERT</small>${tx}</span>${ic('chevron-down','chev')}</button>
+    <div class="wkp-pop" id="pwkPop" hidden role="listbox"><div class="input">${ic('search')}<input id="pwkQ" placeholder="Buscar semana ou data..."></div><div class="wkp-l" id="pwkL"></div></div>`;
+}
+function pertPickRender(){
+  const box = $('pertPick'); if(!box) return;
+  if($('pwkPop') && !$('pwkPop').hidden) return;          // não fecha a lista aberta
+  box.innerHTML = pertPickHtml(); pertPickLigar(); icons();
+}
+function pertPickLigar(){
+  const btn = $('pwkBtn'), pop = $('pwkPop'), box = $('pertPick'); if(!btn) return;
+  let foco = -1;
+  const lista = () => {
+    const q = norm($('pwkQ').value), sel = pertSemSel(), S = pertSemanas();
+    const O = [];
+    if(!q || norm('todas as semanas').includes(q)) O.push({ todas:true });
+    S.filter(x => !q || norm(`${x.w.label} ${fmtD(x.w.seg)} ${fmtD(x.w.dom)} ${x.atual ? 'atual' : ''}`).includes(q)).forEach(x => O.push(x));
+    let ano = null;
+    $('pwkL').innerHTML = O.length ? O.map((x,i) => {
+      if(x.todas) return `<button type="button" role="option" class="wkp-o ${sel==='*'?'on':''} ${i===foco?'fc':''}" data-w="*" aria-selected="${sel==='*'}"><span class="wn">${ic('layers','sm')}</span><span class="wd"><b>Todas as semanas</b><small>${pl(S.length,'semana','semanas')}</small></span><span class="wc">${LOTES.length}</span>${sel==='*' ? ic('check','sm ok') : ''}</button>`;
+      const h = x.w.ano !== ano ? `<div class="wkp-g">${x.w.ano}</div>` : ''; ano = x.w.ano;
+      return h + `<button type="button" role="option" class="wkp-o ${x.w.label===sel?'on':''} ${i===foco?'fc':''}" data-w="${x.w.label}" aria-selected="${x.w.label===sel}"><span class="wn">${pad(x.w.num)}</span><span class="wd"><b>Semana ${x.w.label}${x.atual ? '<em>atual</em>' : ''}</b><small>${fmtD(x.w.seg)} a ${fmtD(x.w.dom)}</small></span><span class="wc ${x.n?'':'z'}">${x.n}</span>${x.w.label===sel ? ic('check','sm ok') : ''}</button>`;
+    }).join('') : `<div class="ms-empty">Nenhuma semana encontrada</div>`;
+    $('pwkL').querySelectorAll('[data-w]').forEach(b => b.onclick = () => escolher(b.dataset.w));
+    icons(); const f = $('pwkL').querySelector('.fc'); if(f) f.scrollIntoView({ block:'nearest' });
+  };
+  const abrir = () => { pop.hidden = false; btn.setAttribute('aria-expanded','true'); box.classList.add('open'); foco = -1; $('pwkQ').value = ''; lista();
+    const on = $('pwkL').querySelector('.on'); if(on) on.scrollIntoView({ block:'center' }); setTimeout(() => $('pwkQ').focus(), 20); };
+  const fechar = () => { pop.hidden = true; btn.setAttribute('aria-expanded','false'); box.classList.remove('open'); };
+  const escolher = w => { fechar(); pertSem = w; renderPert(); };
+  btn.onclick = () => pop.hidden ? abrir() : fechar();
+  $('pwkQ').oninput = () => { foco = -1; lista(); };
+  $('pwkQ').onkeydown = e => {
+    const n = $('pwkL').querySelectorAll('[data-w]').length;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); foco = Math.min(n - 1, foco + 1); lista(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); foco = Math.max(0, foco - 1); lista(); }
+    else if(e.key === 'Enter'){ e.preventDefault(); const b = $('pwkL').querySelectorAll('[data-w]')[Math.max(0, foco)]; if(b) escolher(b.dataset.w); }
+    else if(e.key === 'Escape'){ e.stopPropagation(); fechar(); btn.focus(); }
+  };
+  document.removeEventListener('pointerdown', window._pwkOut);
+  window._pwkOut = e => { const b = $('pertPick'); if(b && !b.contains(e.target) && $('pwkPop') && !$('pwkPop').hidden) fechar(); };
+  document.addEventListener('pointerdown', window._pwkOut);
+}
+
+/* ---------- filtro por TAG (lista suspensa moderna, com busca e seleção múltipla) ---------- */
+let pertTags = new Set();           // vazio = todas as TAGs
+function pertTagsDaSemana(sel){
+  const m = new Map();
+  LOTES.filter(l => sel === '*' || l.sem.label === sel).forEach(l => {
+    const o = m.get(l.tag) || { tag:l.tag, p:0, a:0 }; o.p++; o.a += l.itens.length; m.set(l.tag, o);
+  });
+  return [...m.values()].sort((a,b) => cmpTxt(a.tag, b.tag));
+}
+/* seleção efetiva: só TAGs que existem na semana escolhida (se nenhuma, vale "todas") */
+function pertTagsSel(sel){
+  const ex = new Set(pertTagsDaSemana(sel).map(x => x.tag));
+  return new Set([...pertTags].filter(t => ex.has(t)));
+}
+function pertDadosFiltrados(sel){
+  const f = pertTagsSel(sel), G = pertDados(sel);
+  return f.size ? G.filter(g => f.has(g.tag)) : G;
+}
+function pertTagBtn(){
+  const sel = pertSemSel(), T = pertTagsDaSemana(sel), f = pertTagsSel(sel), ar = [...f].sort(cmpTxt);
+  const tx = !f.size ? `<b>Todas as TAGs</b><i>${pl(T.length,'TAG','TAGs')}</i>`
+    : f.size === 1 ? `<b>${esc(ar[0])}</b><i>${pl(T.find(x => x.tag === ar[0])?.a || 0,'atividade','atividades')}</i>`
+    : `<b>${f.size} TAGs</b><i>${esc(ar.slice(0,3).join(', '))}${f.size > 3 ? '…' : ''}</i>`;
+  return `<button type="button" class="wkp-btn" id="ptgBtn" aria-haspopup="listbox" aria-expanded="false" ${T.length ? '' : 'disabled'}>
+      <span class="wkp-ic">${ic('tag')}</span><span class="wkp-tx"><small>Filtrar por TAG</small>${tx}</span>
+      ${f.size ? `<span class="ptg-x" id="ptgX" role="button" title="Limpar filtro" aria-label="Limpar filtro">${ic('x','sm')}</span>` : ''}${ic('chevron-down','chev')}</button>
+    <div class="wkp-pop" id="ptgPop" hidden role="listbox" aria-multiselectable="true">
+      <div class="input">${ic('search')}<input id="ptgQ" placeholder="Buscar TAG..."></div>
+      <div class="ms-act"><button type="button" class="btn sm" id="ptgAll">${ic('check-check','sm')}Selecionar visíveis</button><button type="button" class="btn sm" id="ptgClr">${ic('eraser','sm')}Limpar</button><span class="cnt" id="ptgCnt"></span></div>
+      <div class="wkp-l" id="ptgL"></div></div>`;
+}
+function pertTagRender(){
+  const box = $('pertTagPick'); if(!box) return;
+  if($('ptgPop') && !$('ptgPop').hidden) return;
+  box.innerHTML = pertTagBtn(); pertTagLigar(); icons();
+}
+function pertTagLigar(){
+  const btn = $('ptgBtn'), pop = $('ptgPop'), box = $('pertTagPick'); if(!btn) return;
+  let foco = -1;
+  const visiveis = () => { const q = norm($('ptgQ').value); return pertTagsDaSemana(pertSemSel()).filter(x => !q || norm(x.tag).includes(q)); };
+  const atualizaBtn = () => { const w = document.createElement('div'); w.innerHTML = pertTagBtn(); const nb = w.querySelector('#ptgBtn');
+    btn.innerHTML = nb.innerHTML; btn.setAttribute('aria-expanded', 'true'); btn.querySelector('#ptgX')?.addEventListener('click', limpar); icons(); };
+  const lista = () => {
+    const sel = pertSemSel(), f = pertTagsSel(sel), V = visiveis();
+    $('ptgCnt').textContent = f.size ? `${f.size} selecionada(s)` : 'Todas';
+    $('ptgL').innerHTML = V.length ? V.map((x,i) => `<button type="button" role="option" class="wkp-o ${f.has(x.tag)?'on':''} ${i===foco?'fc':''}" data-t="${esc(x.tag)}" aria-selected="${f.has(x.tag)}">
+        <span class="ptg-ck ${f.has(x.tag)?'on':''}">${f.has(x.tag) ? ic('check','sm') : ''}</span>
+        <span class="wd"><b>${esc(x.tag)}</b><small>${pl(x.a,'atividade','atividades')} · ${pl(x.p,'programação','programações')}</small></span></button>`).join('')
+      : `<div class="ms-empty">Nenhuma TAG encontrada</div>`;
+    $('ptgL').querySelectorAll('[data-t]').forEach(b => b.onclick = () => alternar(b.dataset.t));
+    icons(); const fc = $('ptgL').querySelector('.fc'); if(fc) fc.scrollIntoView({ block:'nearest' });
+  };
+  const aplicar = () => { atualizaBtn(); lista(); renderPert(); $('ptgQ').focus(); };
+  const alternar = t => { const f = pertTagsSel(pertSemSel()); pertTags = f; f.has(t) ? f.delete(t) : f.add(t); pertTags = new Set(f); aplicar(); };
+  const limpar = e => { if(e){ e.stopPropagation(); e.preventDefault(); } pertTags = new Set(); if($('ptgPop') && !$('ptgPop').hidden) aplicar(); else { renderPert(); pertTagRender(); } };
+  const abrir = () => { pop.hidden = false; btn.setAttribute('aria-expanded','true'); box.classList.add('open'); foco = -1; $('ptgQ').value = ''; lista();
+    const on = $('ptgL').querySelector('.on'); if(on) on.scrollIntoView({ block:'center' }); setTimeout(() => $('ptgQ').focus(), 20); };
+  const fechar = () => { pop.hidden = true; btn.setAttribute('aria-expanded','false'); box.classList.remove('open'); };
+  btn.onclick = e => { if(e.target.closest('#ptgX')) return; pop.hidden ? abrir() : fechar(); };
+  $('ptgX')?.addEventListener('click', limpar);
+  $('ptgAll').onclick = () => { const f = pertTagsSel(pertSemSel()); visiveis().forEach(x => f.add(x.tag)); pertTags = new Set(f); aplicar(); };
+  $('ptgClr').onclick = () => limpar();
+  $('ptgQ').oninput = () => { foco = -1; lista(); };
+  $('ptgQ').onkeydown = e => {
+    const n = $('ptgL').querySelectorAll('[data-t]').length;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); foco = Math.min(n - 1, foco + 1); lista(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); foco = Math.max(0, foco - 1); lista(); }
+    else if(e.key === 'Enter'){ e.preventDefault(); const b = $('ptgL').querySelectorAll('[data-t]')[Math.max(0, foco)]; if(b) alternar(b.dataset.t); }
+  };
+  pop.onkeydown = e => { if(e.key === 'Escape'){ e.stopPropagation(); fechar(); pertTagRender(); $('ptgBtn').focus(); } };
+  document.removeEventListener('pointerdown', window._ptgOut);
+  window._ptgOut = e => { const b = $('pertTagPick'); if(b && !b.contains(e.target) && $('ptgPop') && !$('ptgPop').hidden){ fechar(); pertTagRender(); } };
+  document.addEventListener('pointerdown', window._ptgOut);
+}
+
+/* ---------- tela ---------- */
+function renderPert(){
+  const el = $('pertG'); if(!el) return;
+  pertPickRender(); pertTagRender();
+  const S = pertSemanas(), sel = pertSemSel();
+  $('pertPdf').disabled = !S.length;
+  if(!LOTES.length){
+    $('pertRes').textContent = '';
+    el.innerHTML = `<div class="empty"><div class="eic">${ic('workflow')}</div><b>Nenhuma programação importada</b>Importe a planilha na tela Programação para ver o PERT.</div>`; icons(); return;
+  }
+  const G = pertDadosFiltrados(sel), nAt = G.reduce((s,g) => s + g.rows.length, 0), nPr = G.reduce((s,g) => s + g.lotes.length, 0);
+  $('pertRes').textContent = `${pl(G.length,'TAG','TAGs')} · ${pl(nPr,'programação','programações')} · ${pl(nAt,'atividade','atividades')}`;
+  if(!G.length){ el.innerHTML = `<div class="empty"><div class="eic">${ic('search-x')}</div><b>Nada para a semana selecionada</b></div>`; icons(); return; }
+  const pc = v => (v * 100).toFixed(3) + '%';
+  const blocos = G.map(g => {
+    const n = g.rows.length, pos = pertPos(g.rows.map(x => ({ ini:x.r.Inicio, fim:x.r.Fim })));
+    const ovDe = i => i > 0 && i < n && +g.rows[i].r.Inicio < +g.rows[i-1].r.Fim;
+    const leg = g.lotes.map(l => `<span class="pt-lg" data-sq="${esc(l.id)}" title="Abrir sequência de atividades"><i style="background:${l.cor ? 'var(--err)' : 'var(--pri)'}"></i>${esc(l.id)}${l.cor ? ' · corretiva' : ''}</span>`).join('');
+    const rows = g.rows.map((x, i) => {
+      const r = x.r, p = pos[i], cor = !!(x.l.cor || r.CorAdd), c = cor ? 'var(--err)' : 'var(--pri)', ov = ovDe(i);
+      const tip = `${x.l.id} · Passo ${r.Passo}\n${(r.Ordem ? r.Ordem + ' - ' : '') + r.Atividade}${r.CenTrab ? '\nCentro: ' + r.CenTrab : ''}${r.Recursos ? '\nRecursos: ' + r.Recursos : ''}\nInício: ${fmtDH(r.Inicio)}\nFim: ${fmtDH(r.Fim)} · ${fmtDur(r.Fim - r.Inicio)}${r._avisos.length ? '\n⚠ ' + r._avisos.join('; ') : ''}`;
+      let cn = '';
+      if(i > 0){
+        if(!ov){ const E = pos[i-1].e; cn += `<i class="pt-v" style="left:${pc(E)};top:0;height:50%"></i><i class="pt-h" style="left:${pc(E)};width:${pc(p.s - E)};top:50%"></i><i class="pt-ar" style="left:${pc(p.s)}"></i>`; }
+        else cn += `<i class="pt-v ov" style="left:${pc(p.s)};top:0;height:calc(50% - 16px)"></i><i class="pt-ad" style="left:${pc(p.s)}"></i>`;
+      }
+      if(i < n - 1){ const x = ovDe(i + 1) ? pos[i+1].s : p.e; cn += `<i class="pt-v ${ovDe(i+1)?'ov':''}" style="left:${pc(x)};top:50%;bottom:0"></i>`; }
+      return `<div class="pt-row" data-sq="${esc(x.l.id)}" style="--c:${c}" title="${esc(tip)}">
+        <div class="pt-lab"><span class="passo">${x.n}</span><div class="pt-tx"><div>${r.Ordem ? `<b>${esc(r.Ordem)}</b> · ` : ''}${esc(r.Atividade)}</div>${(r.CenTrab || r.Recursos) ? `<div class="pt-ct">${ctTxt(r)}</div>` : ''}</div></div>
+        <div class="pt-trk"><div class="pt-plot">${cn}
+          <div class="pt-bar ${cor ? 'cor' : ''} ${(!cor && r._avisos.length) ? 'warn' : ''}" style="left:${pc(p.s)};width:${pc(p.e - p.s)};background:${c}"></div>
+          <div class="pt-dt" style="left:calc(${pc(p.e)} + 8px)"><span><b>Início</b>${fmtDHc(r.Inicio)}</span><span><b>Fim</b>${fmtDHc(r.Fim)} · ${fmtDur(r.Fim - r.Inicio)}</span></div>
+        </div></div></div>`;
+    }).join('');
+    return `<section class="pt-grp"><div class="pt-gh"><span class="tag">${ic('tag','sm')}${esc(g.tag)}</span>
+      <span class="pt-gm">${ic('list-checks','sm')}${pl(n,'atividade','atividades')}</span><span class="pt-gm">${ic('layers','sm')}${pl(g.lotes.length,'programação','programações')}</span><span class="pt-gm">${ic('clock','sm')}${fmtDH(g.ini)} → ${fmtDH(g.fim)}</span>
+      <span class="pt-lgs">${leg}</span></div>${rows}</section>`;
+  }).join('');
+  el.innerHTML = `<div class="pt-wrap"><div class="pt-head"><div>Passo · Ordem · Atividade</div><div>Escala de tempo individual da TAG · início e fim ao lado de cada barra</div></div>${blocos}</div>`;
+  el.querySelectorAll('[data-sq]').forEach(b => b.onclick = e => { e.stopPropagation(); abrirSequencia(b.dataset.sq); });
+  icons();
+}
+$('pertPdf').onclick = () => pertExportarPDF();
+async function pertExportarPDF(){
+  if(!window.PDFLib){ toast('Biblioteca de PDF não carregada. Verifique a conexão e tente novamente.','er'); return; }
+  const sel = pertSemSel(), G = pertDadosFiltrados(sel);
+  if(!G.length){ toast('Nada para exportar na semana selecionada','er'); return; }
+  const btn = $('pertPdf'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${ic('loader-circle','spin')}Gerando…`;
+  try{
+    const s = sel === '*' ? null : semDeLabel(sel);
+    const dados = G.map(g => ({ tag:g.tag, ini:g.ini, fim:g.fim,
+      lotes:g.lotes.map(l => ({ id:l.id, corretiva:!!l.cor })),
+      rows:g.rows.map(x => ({ n:x.n, ordem:x.r.Ordem || '', atividade:x.r.Atividade || '', centro:x.r.CenTrab || '', recursos:x.r.Recursos || '', ini:x.r.Inicio, fim:x.r.Fim,
+        corretiva:!!(x.l.cor || x.r.CorAdd), aviso:x.r._avisos.length > 0 })) }));
+    const bytes = await pertPdfBuild(PDFLib, dados, {
+      titulo:'Sequência de atividades por TAG',
+      periodo:s ? `Semana ${s.label} · ${fmtD(s.seg)} a ${fmtD(s.dom)}` : 'Todas as semanas',
+      geradoEm:fmtDH(new Date()), dur:fmtDur });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type:'application/pdf' }));
+    a.download = `PERT_${sel === '*' ? 'Todas_semanas' : 'Semana_' + sel}${G.length === 1 ? '_' + G[0].tag.replace(/[^\w-]+/g,'_') : ''}_${carimbo()}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`PDF gerado · ${pl(G.length,'TAG','TAGs')}`,'ok');
+  }catch(e){ console.error(e); toast('Não foi possível gerar o PDF: ' + (e.message || e),'er'); }
+  finally{ btn.disabled = false; btn.innerHTML = orig; icons(); }
+}
 </script>
 
 </body>
