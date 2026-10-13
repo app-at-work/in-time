@@ -1040,12 +1040,12 @@ header .sb-st ~ .actions{margin-left:10px}
   <div style="min-width:0"><h1 id="hTit">Programação</h1><small id="hSub"></small></div>
   <div class="sb-st load" id="sbSt"></div>
   <div class="actions" id="hActProg">
-    <button class="hbtn solid" onclick="baixarModelo()"><i data-lucide="file-down"></i>Modelo<span class="lbl-long">&nbsp;Excel</span></button>
-    <button class="hbtn" onclick="escolherModelo()"><i data-lucide="upload"></i>Importar</button>
+    <button class="hbtn solid" onclick="baixarModelo()" title="Baixar modelo Excel"><i data-lucide="file-down"></i>Modelo<span class="lbl-long">&nbsp;Excel</span></button>
+    <button class="hbtn" onclick="escolherModelo()" title="Importar programação"><i data-lucide="upload"></i>Importar</button>
     <button class="hbtn" onclick="abrirLotesImp()" title="Excluir um lote de importação"><i data-lucide="package-x"></i>Lotes</button>
   </div>
   <div class="actions" id="hActOfi" hidden>
-    <button class="hbtn solid" onclick="formOficina()"><i data-lucide="plus"></i>Nova oficina</button>
+    <button class="hbtn solid" onclick="formOficina()" title="Nova oficina"><i data-lucide="plus"></i>Nova oficina</button>
   </div>
   <div class="actions" id="hActInt" hidden></div>
   <div class="actions" id="hActInf" hidden><button class="hbtn" id="bInfHtml" onclick="exportarInfHtml()" title="Baixar o informativo em HTML (somente leitura, com os dados deste momento)"><i data-lucide="file-code-2"></i>Exportar HTML</button></div>
@@ -1053,8 +1053,8 @@ header .sb-st ~ .actions{margin-left:10px}
   <div class="actions" id="hActMin" hidden></div>
   <div class="actions" id="hActAcs" hidden></div>
   <div class="actions" id="hActPert" hidden><button class="hbtn solid" id="pertPdf" title="Exportar PDF: uma TAG por página"><i data-lucide="file-down"></i>Exportar PDF</button></div>
-  <div class="actions" id="hActRep" hidden><button class="hbtn solid" id="repAdd"><i data-lucide="plus"></i>Adicionar report</button></div>
-  <div class="actions" id="hActOps" hidden><button class="hbtn" id="opsRefresh" onclick="opsCarregar(true)"><i data-lucide="refresh-cw"></i>Atualizar agora</button></div>
+  <div class="actions" id="hActRep" hidden><button class="hbtn solid" id="repAdd" title="Adicionar report"><i data-lucide="plus"></i>Adicionar report</button></div>
+  <div class="actions" id="hActOps" hidden><button class="hbtn" id="opsRefresh" onclick="opsCarregar(true)" title="Atualizar agora"><i data-lucide="refresh-cw"></i>Atualizar agora</button></div>
 </header>
 
 <main>
@@ -5549,6 +5549,43 @@ async function pertExportarPDF(){
 .pt-cell,.pt-cell.alt,.pt-cell.we{background:transparent!important}
 .pt-pick .wkp-btn{min-width:215px}
 .pt-pick.open{z-index:25!important}
+</style>
+<style>
+/* ===== HEADER COMPACTO NO CELULAR (uma única linha) ===== */
+@media (max-width:680px){
+  :root{--hh:56px}
+  header{
+    flex-wrap:nowrap!important;gap:8px;
+    min-height:var(--hh);height:auto;
+    padding:max(8px,env(safe-area-inset-top)) 10px 8px!important;
+  }
+  header .burger{width:38px;height:38px}
+  header > .logo#hIcon{display:none}                       /* o menu já identifica a tela */
+  header > div[style*="min-width"]{flex:1 1 auto;min-width:0}
+  header h1{font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header small#hSub{display:none}                          /* subtítulo longo ocupava 2-3 linhas */
+  header .sb-st{margin-left:0!important;padding:6px;flex-shrink:0}
+  /* ações viram botões só com ícone, na mesma linha do título */
+  header .actions{width:auto!important;margin-left:0!important;flex-wrap:nowrap!important;gap:6px;flex-shrink:0}
+  header .actions .hbtn,header .actions .btn{
+    flex:0 0 auto!important;width:38px;height:38px;padding:0!important;
+    justify-content:center;gap:0;font-size:0;border-radius:10px
+  }
+  header .actions .hbtn svg.lucide,header .actions .btn svg.lucide{width:18px;height:18px}
+  header .actions .lbl-long{display:none}
+}
+@media (max-width:360px){
+  header{gap:6px;padding-left:8px!important;padding-right:8px!important}
+  header .actions .hbtn,header .actions .btn,header .burger{width:34px;height:34px}
+  header h1{font-size:14.5px}
+}
+/* celular deitado: header ainda mais baixo */
+@media (max-height:500px) and (orientation:landscape){
+  :root{--hh:48px}
+  header{flex-wrap:nowrap!important;min-height:var(--hh);padding-top:6px!important;padding-bottom:6px!important}
+  header small#hSub{display:none}
+  header h1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 </style>
 </body>
 </html>
