@@ -1619,10 +1619,7 @@ function montarLotesImport(){
     });
   });
   analisar(lotes);
-  if(!pend.semSel){
-    const ini = Math.min(...pend.validos.map(r => +r.Inicio));
-    pend.semSel = isFinite(ini) ? semanaDe(new Date(ini)).label : semanaDe(new Date()).label;
-  }
+  if(!pend.semSel) pend.semSel = semRelImp(1).label;      // padrão: sempre a semana seguinte à atual
   const semL = semDeLabel(pend.semSel);
   lotes.forEach(l => { l.sem = semL; l.itens.forEach(r => r.Semana = semL.label); });
   lotes.forEach(l => l.key = chaveTS(l));
@@ -1781,14 +1778,15 @@ function abrirConfirmacao(){
   $('bConf').onclick = confirmarImport;
   atualizarSel();
 }
-/* semanas oferecidas na importação: do início ao fim das atividades, com 2 semanas de folga e a semana atual */
+/* semana relativa à atual (0 = atual, 1 = seguinte, -1 = anterior...) */
+function semRelImp(k){
+  const d = new Date(semanaDe(new Date()).seg); d.setHours(12,0,0,0); d.setDate(d.getDate() + k * 7);
+  return semanaDe(d);
+}
+/* semanas oferecidas na importação: 5 anteriores, a atual e 5 seguintes */
 function semOpcoesImp(){
-  const ds = pend.validos.flatMap(r => [+r.Inicio, +r.Fim]).filter(isFinite);
-  const hoje = Date.now(), a = Math.min(hoje, ...ds) - 14 * 864e5, b = Math.max(hoje, ...ds) + 14 * 864e5;
-  const m = new Map(), d = new Date(a);
-  while(+d <= b){ const s = semanaDe(d); m.set(s.label, s); d.setDate(d.getDate() + 7); }
-  const s2 = semanaDe(new Date(b)); m.set(s2.label, s2);
-  if(pend.semSel && !m.has(pend.semSel)){ const s3 = semDeLabel(pend.semSel); if(s3) m.set(s3.label, s3); }
+  const m = new Map();
+  for(let k = -5; k <= 5; k++){ const s = semRelImp(k); m.set(s.label, s); }
   return [...m.values()].sort((x,y) => x.cod.localeCompare(y.cod));
 }
 function coincHtml(){
