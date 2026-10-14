@@ -3655,7 +3655,7 @@ function renderInf(){
     </div>`;
   const A = h => ({ art:true, html:h });
   const blocos = [
-    A(`<article class="art status-op"><button type="button" class="so-copy" data-copy-so title="Copiar relatório diário para WhatsApp" aria-label="Copiar relatório diário">${ic('copy')}</button><span class="kick bl">${ic('radio-tower','sm')}Status operacional</span><h3>Equipamentos e programações previstas</h3><p>${txtSO}</p><div class="so-legenda"><b>Legenda</b>${SO_LEG.map(([k,t])=>`<span>${soIcone(k)} ${t}</span>`).join('')}</div><div class="so-resumo">${soResumo}</div><div class="so-lista">${soLista}</div></article>`),
+    A(`<article class="art status-op"><div class="so-acts"><button type="button" class="so-copy so-ref" data-ref-so data-noprint title="Atualizar Status Operacional (automático a cada 1 minuto)" aria-label="Atualizar Status Operacional" ${opsLoading?'disabled':''}>${ic('refresh-cw',opsLoading?'spin':'')}</button><button type="button" class="so-copy" data-copy-so title="Copiar relatório diário para WhatsApp" aria-label="Copiar relatório diário">${ic('copy')}</button></div><span class="kick bl">${ic('radio-tower','sm')}Status operacional</span><h3>Equipamentos e programações previstas</h3><p>${txtSO}</p><div class="so-legenda"><b>Legenda</b>${SO_LEG.map(([k,t])=>`<span>${soIcone(k)} ${t}</span>`).join('')}</div><div class="so-resumo">${soResumo}</div><div class="so-lista">${soLista}</div></article>`),
     A(`<article class="art"><span class="kick">${ic('mountain','sm')}Minas</span><h3>Programação por mina</h3><p>${txtMina}${txtMina2}${txtSem}</p><div class="mbars">${barras}</div></article>`),
     A(`<article class="art ${G.hojeIni.some(x=>inicioHojeDe(x.l)?.atrasada)?'alert':''}"><span class="kick wr">${ic('calendar-clock','sm')}Inícios de hoje</span><h3>${G.hojeIni.length ? pl(G.hojeIni.length,'programação prevista para hoje','programações previstas para hoje') : 'Sem início previsto para hoje'}</h3><p>${G.hojeIni.length ? 'O tempo restante é atualizado a cada minuto. Após 30 minutos do horário previsto sem início, a programação passa a indicar atraso.' : 'Não há programações não iniciadas com início previsto para hoje.'}</p>${G.hojeIni.length ? `<ul class="tl-l b">${G.hojeIni.slice(0,10).map(x=>{const h=inicioHojeDe(x.l);return `<li><button class="lk2" data-sq="${esc(x.l.id)}"><b>${esc(x.l.tag)}</b> · ${esc(x.l.id)}${x.o?` · ${esc(x.mina)} · ${esc(x.o.nome)} · ${esc(x.loc)}`:' · sem alocação'} — ${h.atrasada?`<b>atraso de ${fmtDur(h.ms)}</b>`:`inicia em <b>${fmtDur(h.ms)}</b>`} (${fmtDH(x.l.ini)})</button></li>`;}).join('')}</ul>`:''}</article>`),
     A(`<article class="art"><span class="kick bl">${ic('activity','sm')}Execução</span><h3>${G.and.length ? pl(G.and.length,'programação em andamento','programações em andamento') : 'Execução em ritmo de espera'}</h3><div class="art-f">${ring}<p>${txtExec}</p></div></article>`),
@@ -3745,6 +3745,7 @@ function ligarConteudoInf(root){
   root.querySelectorAll('[data-sq]').forEach(b => b.onclick = () => abrirSequencia(b.dataset.sq));
   root.querySelectorAll('[data-of]').forEach(b => b.onclick = () => abrirInTime(b.dataset.of));
   root.querySelectorAll('[data-copy-so]').forEach(b => b.onclick = e => { e.stopPropagation(); copiarStatusOperacional(); });
+  root.querySelectorAll('[data-ref-so]').forEach(b => b.onclick = e => { e.stopPropagation(); b.disabled = true; b.innerHTML = ic('refresh-cw','spin'); infOpsAtualizar(true); });
   root.querySelectorAll('[data-copy-so-mina]').forEach(b => b.onclick = e => {
     e.preventDefault(); e.stopPropagation();
     const f = { mina:b.dataset.copySoMina }; if(b.dataset.copySoFrota !== undefined) f.frota = b.dataset.copySoFrota;
@@ -3763,7 +3764,13 @@ function ligarInf(){
   if(!$('pgV')) ligarConteudoInf(el);
   icons();
   clearInterval(infTimer);
-  infTimer = setInterval(() => { if(tela === 'inf' && !$('modal').classList.contains('show') && $('wkpPop')?.hidden !== false) renderInf(); }, 60000);
+  infTimer = setInterval(() => { if(tela === 'inf' && !document.hidden) infOpsAtualizar(false); }, 60000);
+}
+/* Status Operacional do Informativo: recarrega o cache e redesenha (botão, ao acessar e a cada 1 minuto) */
+async function infOpsAtualizar(manual=false){
+  if(opsLoading){ while(opsLoading) await new Promise(r => setTimeout(r, 150)); }
+  else await opsCarregar(manual);
+  if(tela === 'inf' && !$('modal').classList.contains('show') && $('wkpPop')?.hidden !== false) renderInf();
 }
 
 /* ---------- modal de detalhamento ---------- */
@@ -4149,7 +4156,7 @@ function trocarTela(s){
   $('scrInf').hidden = s !== 'inf'; $('scrOps').hidden = s !== 'ops'; $('scrRep').hidden = s !== 'rep'; $('scrProg').hidden = s !== 'prog'; $('scrInt').hidden = s !== 'int'; $('scrOfi').hidden = s !== 'ofi'; $('scrCfg').hidden = s !== 'cfg'; $('scrMin').hidden = s !== 'min'; $('scrAcs').hidden = s !== 'acs'; $('scrPert').hidden = s !== 'pert';
   $('hActInf').hidden = s !== 'inf'; $('hActOps').hidden = s !== 'ops'; $('hActRep').hidden = s !== 'rep'; $('hActProg').hidden = s !== 'prog'; $('hActInt').hidden = s !== 'int'; $('hActOfi').hidden = s !== 'ofi'; $('hActCfg').hidden = s !== 'cfg'; $('hActMin').hidden = s !== 'min'; $('hActAcs').hidden = s !== 'acs'; $('hActPert').hidden = s !== 'pert';
   try{ localStorage.setItem('importador_tela', s); }catch(e){}
-  if(s === 'inf') renderInf(); else if(s === 'ops') renderOps(); else if(s === 'rep') renderReport(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else if(s === 'pert') renderPert(); else renderOfi();
+  if(s === 'inf'){ renderInf(); infOpsAtualizar(false); } else if(s === 'ops') renderOps(); else if(s === 'rep') renderReport(); else if(s === 'prog') render(); else if(s === 'int') renderInTime(); else if(s === 'cfg') renderCfg(); else if(s === 'min') renderMin(); else if(s === 'acs') renderAcs(); else if(s === 'pert') renderPert(); else renderOfi();
   montarMenu();
 }
 
@@ -4761,7 +4768,11 @@ sbIniciar();
 @media(max-width:680px){.ops-cache .right{margin-left:0;width:100%}.ops-tools .ops-select{width:100%}.ops-tools .ops-select select{width:100%}}
 
 /* ===== Status operacional · cascata, legenda e cópia ===== */
-.status-op{position:relative}.status-op>h3{padding-right:48px}
+.status-op{position:relative}.status-op>h3{padding-right:92px}
+.so-acts{position:absolute;right:0;top:16px;display:flex;gap:8px;z-index:2}
+.so-acts .so-copy{position:static}
+.so-copy:disabled{opacity:.7;cursor:wait;transform:none}
+.so-copy .spin{animation:spin 1s linear infinite}
 .so-copy{position:absolute;right:0;top:16px;width:36px;height:36px;border:1px solid #cdd8fb;border-radius:10px;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;z-index:2;transition:.15s}
 .so-copy:hover{background:var(--blue);color:#fff;transform:translateY(-1px);box-shadow:var(--sh)}
 .so-legenda{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;background:#f7fafa;border:1px solid var(--border);border-radius:10px;font-size:11.5px}
