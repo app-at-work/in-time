@@ -5082,7 +5082,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
   const doc = await PDFDocument.create();
   const F = await doc.embedFont(StandardFonts.Helvetica), FB = await doc.embedFont(StandardFonts.HelveticaBold);
   doc.setTitle(ctx.titulo + ' · ' + ctx.periodo); doc.setCreator('IN TIME'); doc.setProducer('IN TIME');
-  const PW = 841.89, PH = 595.28, M = 28, LABW = 238, STW = 84, OBW = 138, FOOT = 20, HEAD = 30, LH = 16, GAP = 10;
+  const PW = 841.89, PH = 595.28, M = 28, LABW = 238, STW = 84, OBW = 138, FOOT = 20, HEAD = 30, LH = 16, HC = 26, GAP = 10;
   const X0 = M + LABW + 10, XR = PW - M - STW - OBW, PWd = XR - X0;
   const p2 = n => String(n).padStart(2, '0');
   const fDH = d => `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
@@ -5121,7 +5121,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
       const mlines = meta ? wrap(meta, ms, textW, textW) : [];
       return { pre, lines, lh, mlines, ms, mlh, h:Math.max(40, lines.length * lh + (mlines.length ? mlines.length * mlh + 2 : 0) + 9) };
     }));
-    const total = mm => mm.reduce((a, rs, li) => a + LH + HEAD + rs.reduce((x, y) => x + y.h, 0) + (li < mm.length - 1 ? GAP : 0), 0);
+    const total = mm => mm.reduce((a, rs, li) => a + (li ? HC : LH + HEAD) + rs.reduce((x, y) => x + y.h, 0) + (li < mm.length - 1 ? GAP : 0), 0);   // cabeçalho completo só na 1ª programação da TAG
     let fs = 7, m = null;
     for(const sz of SIZES){ const mm = measure(sz); if(total(mm) <= avail){ fs = sz; m = mm; break; } }
     if(!m) m = measure(fs);
@@ -5133,9 +5133,12 @@ async function pertPdfBuild(PDFLib, G, ctx){
     g.lotes.forEach((P, li) => {
       const hs = m[li]; let from = 0;
       while(from < hs.length){
-        if(cur.length && used + LH + HEAD + hs[from].h > avail){ paginas.push(cur); cur = []; used = 0; }
-        let to = from, h = LH + HEAD;
-        while(to < hs.length && (to === from || used + h + hs[to].h <= avail)){ h += hs[to].h; to++; }
+        const yTopC = M + 22, availC = PH - M - FOOT - yTopC;      // página de continuação: sem título da TAG
+        const av = () => paginas.length ? availC : avail;
+        const cab = () => cur.length ? HC : (from > 0 ? 0 : LH + HEAD);   // continuação da mesma programação: sem cabeçalho
+        if(cur.length && used + cab() + hs[from].h > av()){ paginas.push(cur); cur = []; used = 0; }
+        let to = from, h = cab();
+        while(to < hs.length && (to === from || used + h + hs[to].h <= av())){ h += hs[to].h; to++; }
         cur.push({ li, from, to, cont:from > 0 }); used += h + GAP; from = to;
         if(from < hs.length){ paginas.push(cur); cur = []; used = 0; }
       }
@@ -5154,32 +5157,53 @@ async function pertPdfBuild(PDFLib, G, ctx){
       T('PERT  ·  ' + safe(ctx.titulo), M, M + 8, 10.5, FB, C.pri);
       const per = safe(ctx.periodo); T(per, PW - M - W(F, per, 9), M + 8, 9, F, C.mut);
       L(M, M + 15, PW - M, M + 15, .8, C.pri);
-      T(safe(g.tag), M, yTitle, 18, FB, C.ink);
-      T(safe(`${g.nAt} atividade(s)  ·  ${g.lotes.length} programação(ões)  ·  ${fDH(g.ini)} a ${fDH(g.fim)}` + (paginas.length > 1 ? `  ·  continuação ${pg + 1}/${paginas.length}` : '')), M, ySub, 8.5, F, C.mut);
+      if(pg === 0){ T(safe(g.tag), M, yTitle, 18, FB, C.ink);
+      T(safe(`${g.nAt} atividade(s)  ·  ${g.lotes.length} programação(ões)  ·  ${fDH(g.ini)} a ${fDH(g.fim)}` + (paginas.length > 1 ? `  ·  continuação ${pg + 1}/${paginas.length}` : '')), M, ySub, 8.5, F, C.mut); }
 
-      let y = yTop;
-      segs.forEach(sg => {
+      let y = pg === 0 ? yTop : M + 22;
+      segs.forEach((sg, si) => {
         const P = g.lotes[sg.li], { E, pos, dw } = SC[sg.li], mm = m[sg.li], idxs = []; for(let i = sg.from; i < sg.to; i++) idxs.push(i);
         const corP = !!P.corretiva;
+        const modo = dw >= 22 ? 'full' : dw >= 11 ? 'dd' : 'sp', horas = dw >= 90, wstep = Math.max(1, Math.ceil(36 / (dw * 7)));
+        const rotDia = (dy, k) => {
+          if(modo === 'full') return [dy.l1, dy.l2];
+          if(modo === 'dd') return [(dw >= 17 && (k === 0 || dy.dd === '01')) ? dy.l1 : dy.dd, (k === 0 || dy.dd === '01') ? dy.mes : dy.l2.slice(0, 1).toUpperCase()];
+          if((dy.mon && dy.wk % wstep === 0) || (k === 0 && !dy.mon && dy.dm * dw >= 36)) return [dy.l1, dy.mon ? 'seg' : dy.l2];
+          return ['', ''];
+        };
+        let yRows;
+        if(si === 0 && sg.cont){
+          yRows = y;                                         // continuação da mesma programação: linhas seguem direto, sem cabeçalho
+        } else if(si > 0){
+          /* mesma TAG na mesma página: sem repetir o cabeçalho; faixa compacta com a escala de dias desta programação */
+          R(M, y, PW - 2 * M, HC, { color:rgb(.918,.957,.953), borderColor:C.line, borderWidth:.5 }); R(M, y, 3, HC, { color:corP ? C.red : C.pri });
+          T(safe('Programação ' + P.id), M + 9, y + 11, 8.2, FB, C.ink);
+          let inf = safe(`${P.rows.length} ativ.  ·  ${fDc(P.ini)} a ${fDc(P.fim)}  ·  ${E.n} ${E.n === 1 ? 'dia' : 'dias'}` + (corP ? '  ·  CORRETIVA' : '') + (sg.cont ? '  ·  cont.' : ''));
+          let fsI = 6.6; while(fsI > 5 && W(F, inf, fsI) > LABW - 12) fsI -= .2;
+          T(inf, M + 9, y + 21, fsI, F, corP ? C.red : C.mut);
+          E.dias.forEach((dy, k) => {
+            const x0 = X0 + k * dw, [l1, l2] = rotDia(dy, k);
+            if(modo !== 'sp' || dy.mon || k === 0) L(x0, y, x0, y + HC, dy.mon ? .9 : .5, C.arr);
+            T(safe(l1), x0 + 2.5, y + 11, 6.6, FB, C.ink);
+            T(safe(l2), x0 + 2.5, y + 20, 6.4, F, C.mut);
+          });
+          L(X0 + PWd, y, X0 + PWd, y + HC, .6, C.arr);
+          yRows = y + HC;
+        } else {
         /* faixa da programação */
         R(M, y, PW - 2 * M, LH, { color:rgb(.918,.957,.953) }); R(M, y, 3, LH, { color:corP ? C.red : C.pri });
         const ttl = safe('Programação ' + P.id); T(ttl, M + 9, y + 11, 8.2, FB, C.ink);
         const info = safe(`${P.rows.length} atividade(s)  ·  ${fDc(P.ini)} a ${fDc(P.fim)}  ·  ${E.n} ${E.n === 1 ? 'dia' : 'dias'}` + (corP ? '  ·  CORRETIVA' : '') + (sg.cont ? '  ·  continuação' : ''));
         T(info, M + 9 + W(FB, ttl, 8.2) + 10, y + 11, 7, F, corP ? C.red : C.mut);
-        const yHead = y + LH, yRows = yHead + HEAD;
+        const yHead = y + LH; yRows = yHead + HEAD;
 
         /* cabeçalho da programação: uma coluna por dia (limite de cada dia) */
         R(M, yHead, PW - 2 * M, HEAD, { color:C.soft, borderColor:C.line, borderWidth:.5 });
         T('Passo · Ordem · Atividade', M + 6, yHead + 12, 7.5, FB, C.mut);
         T(safe('Escala da programação: ' + E.dias[0].l1 + ' > ' + E.dias[E.n - 1].l1 + '  ·  ' + E.n + (E.n === 1 ? ' dia' : ' dias')), M + 6, yHead + 23, 6.6, F, C.mut);
-        const modo = dw >= 22 ? 'full' : dw >= 11 ? 'dd' : 'sp', horas = dw >= 90, wstep = Math.max(1, Math.ceil(36 / (dw * 7)));
         E.dias.forEach((dy, k) => {
-          const x0 = X0 + k * dw;
+          const x0 = X0 + k * dw, [l1, l2] = rotDia(dy, k);
           if(modo !== 'sp' || dy.mon || k === 0) L(x0, yHead, x0, yHead + HEAD, dy.mon ? .9 : .5, C.arr);
-          let l1 = '', l2 = '';
-          if(modo === 'full'){ l1 = dy.l1; l2 = dy.l2; }
-          else if(modo === 'dd'){ l1 = (dw >= 17 && (k === 0 || dy.dd === '01')) ? dy.l1 : dy.dd; l2 = (k === 0 || dy.dd === '01') ? dy.mes : dy.l2.slice(0, 1).toUpperCase(); }
-          else if((dy.mon && dy.wk % wstep === 0) || (k === 0 && !dy.mon && dy.dm * dw >= 36)){ l1 = dy.l1; l2 = dy.mon ? 'seg' : dy.l2; }
           T(safe(l1), x0 + 2.5, yHead + 10, 6.6, FB, C.ink);
           T(safe(l2), x0 + 2.5, yHead + 18.5, 6.4, F, C.mut);
           if(horas) [6, 12, 18].forEach(h => T(h + 'h', x0 + dw * h / 24 - 3.5, yHead + 27.2, 5, F, C.mut));
@@ -5191,6 +5215,7 @@ async function pertPdfBuild(PDFLib, G, ctx){
           const t = safe(nm); T(t, cx0 + (cw - W(FB, t, 7.2)) / 2, yHead + 14, 7.2, FB, C.white);
           const h = safe(sub); T(h, cx0 + (cw - W(F, h, 5.6)) / 2, yHead + 22.4, 5.6, F, C.priSoft);
         });
+        }
 
         /* posições verticais */
         let yy = yRows; const top = {}; idxs.forEach(i => { top[i] = yy; yy += mm[i].h; });
