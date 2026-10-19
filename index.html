@@ -5944,5 +5944,15 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
 /* inicia a conexão só depois que todas as regras (permissões, report, status, offline) estão carregadas */
 sbIniciar();
 </script>
+<style>
+/* ===== MENU LATERAL · barra de rolagem transparente na cor do tema ===== */
+.sb-nav{scrollbar-width:thin;scrollbar-color:rgba(120,210,205,.35) transparent}
+.sb-nav::-webkit-scrollbar{width:6px;background:transparent}
+.sb-nav::-webkit-scrollbar-track{background:transparent}
+.sb-nav::-webkit-scrollbar-thumb{background:rgba(120,210,205,.35);border-radius:6px}
+.sb-nav::-webkit-scrollbar-thumb:hover{background:rgba(120,210,205,.6)}
+.sb-nav::-webkit-scrollbar-button{display:none;height:0}
+.sb-nav::-webkit-scrollbar-corner{background:transparent}
+</style>
 </body>
 </html>
