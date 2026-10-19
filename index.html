@@ -3830,6 +3830,7 @@ function infDetalhe(k){
    ===================================================================== */
 const SB_URL = 'https://anptuyscbsqarvilzjcw.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucHR1eXNjYnNxYXJ2aWx6amN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTQ3MTUsImV4cCI6MjEwNjI3MDcxNX0.lvaPgaynu8bbne04q71CTeMpO39wcYOHrWKQEOvycO4';
+let sbPendLeit = false;
 let sb = null, sbOk = false, sbCarregando = false, sbTimer = null, sbGravando = false, sbPend = false, sbUltGrav = 0;
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); }));
 const isUuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v||''));
@@ -3902,18 +3903,34 @@ async function sbCarregar(silencioso){
   sbCarregando = true; if(!silencioso) sbStatus('load');
   try{
     const res = await Promise.all(SB_TABS.map(sbTodos));
+    // alterações locais ainda não enviadas (ex.: feitas durante a leitura) não podem ser sobrescritas
+    let loc = null, nLoc = 0;
+    if(SB_TABS.some(t => sbSnap[t].size)){
+      try{
+        const cur = linhasAtuais(); loc = {};
+        SB_TABS.forEach(t => { const pk = SB_PK[t], vis = new Set(); loc[t] = { up:[], del:[] };
+          cur[t].forEach(r => { vis.add(r[pk]); if(sbSnap[t].get(r[pk]) !== JSON.stringify(r)) loc[t].up.push(r); });
+          sbSnap[t].forEach((_, k) => { if(!vis.has(k)) loc[t].del.push(k); }); });
+      }catch(e){ loc = null; }
+    }
     SB_TABS.forEach((t,i) => {
       sbRaw[t].clear(); sbSnap[t].clear();
       res[i].forEach(r => { const k = r[SB_PK[t]]; sbRaw[t].set(k, r); sbSnap[t].set(k, sj(t, r)); });
+      if(loc){
+        const pk = SB_PK[t];
+        loc[t].up.forEach(r => { sbRaw[t].set(r[pk], { ...(sbRaw[t].get(r[pk]) || {}), ...r }); nLoc++; });
+        loc[t].del.forEach(k => { if(sbRaw[t].delete(k)) nLoc++; });
+      }
     });
     montarDeRaw();
     sbOk = true; sbStatus('on');
+    if(nLoc) setTimeout(agendarSync, 0);
     return true;
   }catch(e){
     console.error('Supabase (leitura):', e); sbOk = false;
     sbStatus('err', 'Não foi possível ler o banco: ' + (e.message || e) + '. Usando dados salvos neste navegador.');
     return false;
-  }finally{ sbCarregando = false; }
+  }finally{ sbCarregando = false; if(sbPendLeit){ sbPendLeit = false; setTimeout(agendarSync, 0); } }
 }
 let _cacheT = null;
 function cacheLocal(){
@@ -3930,17 +3947,21 @@ function cacheLocalLater(){
 }
 /* ---------- escrita: envia SOMENTE as linhas alteradas (diff) ---------- */
 function agendarSync(){
-  if(!sb || sbCarregando) return;
+  if(!sb) return;
+  if(sbCarregando){ sbPendLeit = true; sbStatus('sync'); return; }
   clearTimeout(sbTimer); sbStatus('sync');
   sbTimer = setTimeout(() => { sbTimer = null; sbGravar(); }, 400);
 }
 async function sbUpsert(tab, rows){
-  for(let i = 0; i < rows.length; i += 500){
-    const { error } = await sb.from(tab).upsert(rows.slice(i, i + 500), { onConflict:SB_PK[tab] });
-    if(error) throw error;
+  if(!rows.length) return;
+  const L = []; for(let i = 0; i < rows.length; i += 500) L.push(rows.slice(i, i + 500));
+  for(let i = 0; i < L.length; i += 3){                     // até 3 lotes simultâneos
+    const rs = await Promise.all(L.slice(i, i + 3).map(c => sb.from(tab).upsert(c, { onConflict:SB_PK[tab] })));
+    const e = rs.find(r => r.error); if(e) throw e.error;
   }
 }
 async function sbApagar(tab, ids){
+  if(!ids.length) return;
   for(let i = 0; i < ids.length; i += 200){
     const { error } = await sb.from(tab).delete().in(SB_PK[tab], ids.slice(i, i + 200));
     if(error) throw error;
@@ -3984,8 +4005,7 @@ async function sbGravar(){
     if(!total){ sbStatus('on'); return; }
     sbStatus('sync');
     // ordem segura para as chaves estrangeiras
-    await sbApagar('alocacoes', del.alocacoes);
-    await sbApagar('atividades', del.atividades);
+    await Promise.all([sbApagar('alocacoes', del.alocacoes), sbApagar('atividades', del.atividades)]);
     await sbUpsert('minas', up.minas);
     await sbUpsert('oficinas', up.oficinas);
     const novasProg = new Set(up.programacoes.filter(p => !sbSnap.programacoes.has(p.id)).map(p => p.id));
@@ -3993,8 +4013,7 @@ async function sbGravar(){
       await sbUpsert('programacoes', up.programacoes.map(p => ({...p, seguir_com:null})));
     }
     await sbUpsert('programacoes', up.programacoes);
-    await sbUpsert('atividades', up.atividades);
-    await sbUpsert('alocacoes', up.alocacoes);
+    await Promise.all([sbUpsert('atividades', up.atividades), sbUpsert('alocacoes', up.alocacoes)]);
     await sbApagar('programacoes', del.programacoes);
     await sbApagar('oficinas', del.oficinas);
     await sbApagar('minas', del.minas);
@@ -4052,7 +4071,7 @@ function aplicarRemoto(){
 let _ocultoEm = 0;
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){ _ocultoEm = Date.now(); return; }
-  if(sb && _ocultoEm && Date.now() - _ocultoEm > 60000) sbCarregar(true).then(ok => ok && atualizarTela());
+  if(sb && _ocultoEm && Date.now() - _ocultoEm > 300000) sbCarregar(true).then(ok => ok && atualizarTela());
 });
 function atualizarTela(){
   menuLater();
@@ -5701,7 +5720,10 @@ async function offSalvarJa(){
     await idb.set('estado', { base:true, uid:EU?.id || OFF.uid || null, rows:offLocalRows(), snap, ts:Date.now() });
   }catch(e){ console.warn('offline · salvar:', e); }
 }
-function offSalvarLater(ms = 400){ clearTimeout(OFF.t); OFF.t = setTimeout(offSalvarJa, ms); }
+function offSalvarLater(ms = 2000){ clearTimeout(OFF.t); OFF.t = setTimeout(() => (window.requestIdleCallback || (f => f()))(offSalvarJa, { timeout:3000 }), ms); }
+/* com IndexedDB ativo, a cópia em localStorage (síncrona e pesada) é desnecessária */
+const _cacheLocal = cacheLocal;
+cacheLocal = function(){ if(!OFF.base) _cacheLocal(); };
 
 async function offRestaurar(){
   try{
@@ -5834,7 +5856,7 @@ const _perfisCarregar = perfisCarregar;
 perfisCarregar = async function(){
   if(!sb) return offPerfisLocal();
   let ok = false;
-  if(offOn()){ try{ const { data, error } = await offTimeout(sb.auth.getUser(), 6000); ok = !error && !!data?.user; }catch(e){} }
+  if(offOn()){ try{ const { data } = await offTimeout(sb.auth.getSession(), 4000); ok = !!data?.session; }catch(e){} }
   if(!ok) return offPerfisLocal();
   await _perfisCarregar();
   if(EU?.id && USERS.length){ OFF.eu = EU; idb.set('perfis', { EU, USERS }).catch(() => {}); }
@@ -5859,6 +5881,12 @@ function offOpsRestaurar(){
 const _opsCarregar = opsCarregar;
 opsCarregar = async function(manual = false){
   if(!offOn() && offOpsRestaurar()){ renderOps(); if(manual) toast('Sem conexão · exibindo o último Status Operacional salvo','er'); return; }
+  if(!manual && opsCache && !opsCache.erro && !opsCache._offline && opsRows.length && opsSb){
+    try{
+      const { data } = await opsSb.from('cache_apontamentos_api').select('atualizado_em').order('atualizado_em',{ ascending:false }).limit(1).maybeSingle();
+      if(data && data.atualizado_em === opsCache.atualizado_em) return;     // nada mudou: evita baixar o JSON inteiro
+    }catch(e){}
+  }
   await _opsCarregar(manual);
   if(opsCache && !opsCache.erro && opsRows.length){
     const { dados_json, ...meta } = opsCache;
@@ -5934,7 +5962,7 @@ addEventListener('online',  () => setTimeout(offSync, 1200));
 addEventListener('offline', () => { offStatus(); toast('Sem conexão · o aplicativo continua funcionando e sincroniza quando o sinal voltar'); });
 addEventListener('pagehide', () => { offSalvarJa(); });
 document.addEventListener('visibilitychange', () => { if(document.hidden) offSalvarJa(); });
-setInterval(() => { if(offOn() && sb && appIniciado && offContar() && !sbGravando && !sbTimer) offSync(); }, 60000);   // tenta de novo se ficou algo pendente
+setInterval(() => { if(offOn() && sb && appIniciado && !sbGravando && !sbTimer && !sbCarregando && (!sbOk || Object.keys(REP_PEND.up).length || REP_PEND.del.length)) offSync(); }, 60000);   // tenta de novo se ficou algo pendente
 
 /* ---------- service worker (cache do app e das bibliotecas) ---------- */
 if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
