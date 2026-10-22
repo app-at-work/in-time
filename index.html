@@ -5982,5 +5982,148 @@ sbIniciar();
 .sb-nav::-webkit-scrollbar-button{display:none;height:0}
 .sb-nav::-webkit-scrollbar-corner{background:transparent}
 </style>
+<!-- ===================================================================
+     STATUS DE PRAZO DA EXECUÇÃO · No prazo / Antecipada / Em atraso
+     + Previsão de finalização das atrasadas (tempo das ordens pendentes)
+     =================================================================== -->
+<style>
+.pill.pz-ok{background:#e7f6ec;color:var(--ok);border:1px solid #bfe5cb}
+.pill.pz-ant{background:var(--blue-soft);color:var(--blue);border:1px solid #cdd8fb}
+.pill.pz-atr{background:var(--err-soft);color:var(--err);border:1px solid #f5c2c7}
+.pz-ln{margin-top:2px}
+.pz-prev{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--err);white-space:normal}
+.pz-prev b{color:#a3212e}
+.pz-box{display:flex;gap:12px;align-items:flex-start;border-radius:12px;padding:12px 14px;margin:-4px 0 14px;border:1px solid var(--border);background:#f7fafa}
+.pz-box .pi{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#fff;flex-shrink:0}
+.pz-box b.t{display:block;font-size:14px}
+.pz-box small{display:block;color:var(--muted);font-size:12px;margin-top:3px;line-height:1.45}
+.pz-box.pz-ok{background:#f1faf4;border-color:#bfe5cb}.pz-box.pz-ok .pi{color:var(--ok)}
+.pz-box.pz-ant{background:var(--blue-soft);border-color:#cdd8fb}.pz-box.pz-ant .pi{color:var(--blue)}
+.pz-box.pz-atr{background:#fff7f8;border-color:#f5c2c7}.pz-box.pz-atr .pi{color:var(--err)}
+.pz-box .pz-fc{margin-top:6px;color:#a3212e;font-size:12.5px}
+</style>
+<script>
+(function(){
+  const TOL_MIN = 15 * 60000, TOL_PCT = .05;          // tolerância: 15 min ou 5% da carga planejada (o maior)
+  const PZ = {
+    prazo:{ t:'No prazo',   i:'circle-check', c:'pz-ok'  },
+    antec:{ t:'Antecipada', i:'fast-forward', c:'pz-ant' },
+    atras:{ t:'Em atraso',  i:'alarm-clock',  c:'pz-atr' }
+  };
+  /* avalia a programação em execução contra o planejado até agora */
+  function execPrazo(l, ag = Date.now()){
+    if(!l || psDe(l.id)?.st !== 'ex') return null;
+    const st = r => stDe(r)?.st;
+    const base = l.itens.filter(r => st(r) !== 'can');                 // canceladas não contam
+    if(!base.length) return null;
+    const w = r => Math.max(60000, r.Fim - r.Inicio);
+    const tot = base.reduce((s,r) => s + w(r), 0);
+    let plan = 0, exec = 0;
+    base.forEach(r => {
+      const d = +r.Fim - +r.Inicio;
+      const f = d > 0 ? Math.min(1, Math.max(0, (ag - +r.Inicio) / d)) : (ag >= +r.Inicio ? 1 : 0);
+      plan += w(r) * f;                                                 // o que deveria estar pronto agora
+      if(st(r) === 'ok') exec += w(r);                                  // o que foi executado
+    });
+    const tol = Math.max(TOL_MIN, tot * TOL_PCT);
+    /* previsão: reprograma as ordens não executadas (pendentes e paralisadas) a partir de agora */
+    const rest = base.filter(r => !['ok','nex'].includes(st(r))).sort((a,b) => a.Inicio - b.Inicio || a.Fim - b.Fim);
+    let prev = null, maxFim = ag;
+    rest.forEach(r => {
+      const d = Math.max(0, r.Fim - r.Inicio);
+      const ini = (prev && +r.Inicio < +prev.r.Fim)
+        ? Math.max(+r.Inicio, ag, prev.ini + (+r.Inicio - +prev.r.Inicio))   // planejada em paralelo: mantém a defasagem
+        : Math.max(+r.Inicio, maxFim);                                        // sequencial: após a anterior
+      const fim = ini + d; if(fim > maxFim) maxFim = fim;
+      prev = { r, ini, fim };
+    });
+    const desvio = exec - plan, atrFim = maxFim - +l.fim;
+    let k = 'prazo';
+    if(desvio < -tol || atrFim > tol) k = 'atras'; else if(desvio > tol) k = 'antec';
+    return { k, plan, exec, tot, desvio, tol, prev:maxFim, fimProg:+l.fim,
+      atraso:atrFim > 0 ? atrFim : Math.max(0, -desvio),
+      nRest:rest.length, hRest:rest.reduce((s,r) => s + Math.max(0, r.Fim - r.Inicio), 0),
+      nPar:rest.filter(r => st(r) === 'par').length };
+  }
+  window.execPrazo = execPrazo;
+  const pzTxt = e => e.k === 'atras' ? ` · ${fmtDur(e.atraso)}` : e.k === 'antec' ? ` · ${fmtDur(e.desvio)}` : '';
+  function execPill(l){
+    const e = execPrazo(l); if(!e) return '';
+    const P = PZ[e.k];
+    const tip = e.k === 'atras' ? `Previsão de finalização: ${fmtDH(new Date(e.prev))} (programado: ${fmtDH(new Date(e.fimProg))})` : `Término programado: ${fmtDH(new Date(e.fimProg))}`;
+    return `<span class="pill ${P.c}" title="${esc(tip)}">${ic(P.i,'sm')}${P.t}${pzTxt(e)}</span>`;
+  }
+  function execPrev(l){
+    const e = execPrazo(l); if(!e || e.k !== 'atras') return '';
+    return `<span class="pz-prev">${ic('calendar-clock','sm')}Previsão de finalização: <b>${fmtDH(new Date(e.prev))}</b></span>`;
+  }
+  window.execPill = execPill; window.execPrev = execPrev;
+
+  /* cards da Programação e lista do Informativo */
+  const _scp = statusCardProg;
+  statusCardProg = function(l){
+    const h = _scp(l);
+    if(psDe(l.id)?.st !== 'ex') return h;
+    const e = execPrazo(l);
+    return h + execPill(l) + (e && e.k === 'atras' ? `<span class="pill pz-atr" title="Considera o tempo das ordens ainda não executadas">${ic('calendar-clock','sm')}Prev. fim ${fmtDHc(new Date(e.prev))}</span>` : '');
+  };
+  /* cards do IN TIME (BOX / pátio) */
+  const _ph = progHtml;
+  progHtml = function(l, grande){
+    const h = _ph(l, grande);
+    if(grande || !emExec(l.id)) return h;
+    const p = execPill(l); if(!p) return h;
+    return h + `<div class="stp pz-ln">${p}${execPrev(l)}</div>`;
+  };
+  /* Sequência de atividades: quadro detalhado */
+  const _as = abrirSequencia;
+  abrirSequencia = function(id, manter){
+    _as(id, manter);
+    const l = LMAP.get(id), ps = $('mBody')?.querySelector('.pstat');
+    if(!l || !ps || !$('modal').classList.contains('show')) return;
+    const e = execPrazo(l); if(!e) return;
+    const P = PZ[e.k];
+    const tit = e.k === 'atras' ? `Execução em atraso · ${fmtDur(e.atraso)}` : e.k === 'antec' ? `Execução antecipada · ${fmtDur(e.desvio)} à frente` : 'Execução no prazo';
+    const box = document.createElement('div');
+    box.className = 'pz-box ' + P.c;
+    box.innerHTML = `<div class="pi">${ic(P.i)}</div><div>
+      <b class="t">${tit}</b>
+      <small>Executado: <b>${fmtDur(e.exec)}</b> · Planejado até agora: <b>${fmtDur(e.plan)}</b> · Tolerância: ${fmtDur(e.tol)}</small>
+      <small>Término programado: <b>${fmtDH(new Date(e.fimProg))}</b></small>
+      ${e.k === 'atras' ? `<div class="pz-fc">${ic('calendar-clock','sm')} Previsão de finalização: <b>${fmtDH(new Date(e.prev))}</b> — considera ${pl(e.nRest,'ordem não executada','ordens não executadas')} (${fmtDur(e.hRest)})${e.nPar ? `, incluindo ${e.nPar} paralisada(s)` : ''}.</div>` : ''}
+    </div>`;
+    ps.after(box); icons();
+  };
+  /* texto copiado do Status Operacional (WhatsApp) */
+  const _txt = textoStatusOperacional;
+  textoStatusOperacional = function(f = {}){
+    let id = null;
+    return _txt(f).split('\n').map(ln => {
+      const m = ln.match(/↳ Programação: (.+)$/);
+      if(m){ id = m[1].trim(); return ln; }
+      if(id && /^\s+Status: /.test(ln)){
+        const lp = LMAP.get(id);
+        if(lp){ const pr = progresso(lp), pad0 = ln.match(/^\s*/)[0];
+          if(/Status: Em execução$/.test(ln)){ const e = execPrazo(lp); if(e) ln += ` · ${PZ[e.k].t}` + (e.k === 'atras' ? ` (${fmtDur(e.atraso)}) · Previsão de finalização: ${fmtDH(new Date(e.prev))}` : e.k === 'antec' ? ` (${fmtDur(e.desvio)} à frente)` : ''); }
+          return ln + `\n${pad0}Execução: ${pr.pct}% (${pr.ok} de ${pr.base} executada(s)${pr.par ? ` · ${pr.par} paralisada(s)` : ''}${pr.can ? ` · ${pr.can} cancelada(s)` : ''}${pr.nex ? ` · ${pr.nex} não executada(s)` : ''})` + lp.itens.filter(r => ['par','can'].includes(stDe(r)?.st)).map(r => { const sx = stDe(r);
+            return `\n${pad0}   ${sx.st === 'par' ? '⏸️ Paralisada' : '🚫 Cancelada'} · Ordem ${r.Ordem || '—'} · ${r.Atividade}\n${pad0}      Motivo: ${sx.obs || '—'}`; }).join('');
+        }
+      }
+      if(false){
+        const e = execPrazo(LMAP.get(id));
+        if(e) ln += ` · ${PZ[e.k].t}` + (e.k === 'atras' ? ` (${fmtDur(e.atraso)}) · Previsão de finalização: ${fmtDH(new Date(e.prev))}` : e.k === 'antec' ? ` (${fmtDur(e.desvio)} à frente)` : '');
+      }
+      return ln;
+    }).join('\n');
+  };
+  /* status depende do relógio: atualiza a cada minuto */
+  setInterval(() => {
+    if(document.hidden || $('modal').classList.contains('show')) return;
+    if((tela === 'prog' || tela === 'int') && LOTES.some(l => psDe(l.id)?.st === 'ex')) atualizarTela();
+  }, 60000);
+  if(typeof atualizarTela === 'function') atualizarTela();
+})();
+</script>
+
 </body>
 </html>
