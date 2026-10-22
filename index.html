@@ -6145,5 +6145,20 @@ infPaginar = function(el, top, hero, blocos){
 if(typeof tela !== 'undefined' && tela === 'inf') renderInf();
 </script>
 
+<style>
+/* correção: texto da programação "em pé" no celular */
+.status-op p,.so-report,.so-report div,.so-tag,.so-prog-top .code,.so-prog-grid b{overflow-wrap:break-word!important;word-break:normal!important}
+.so-prog{display:block;width:100%}
+.so-prog-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.so-prog-top .code{flex:1 1 100%!important;min-width:0;white-space:normal;font-size:12.5px}
+.so-prog-top .pill{flex:0 1 auto;max-width:100%;white-space:normal;line-height:1.3}
+.so-prog-top>svg{display:none}
+.so-prog-grid>span{min-width:0}
+@media (max-width:680px){
+  .so-prog-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .so-prog-grid b{white-space:normal!important}
+}
+@media (max-width:380px){ .so-prog-grid{grid-template-columns:minmax(0,1fr)!important} }
+</style>
 </body>
 </html>
